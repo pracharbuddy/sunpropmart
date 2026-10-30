@@ -111,9 +111,9 @@ const AppContent: React.FC = () => {
 
         {currentView === 'contact' && <ContactView />}
 
-        {currentView === 'admin-dashboard' && <AdminDashboard />}
+        {(currentView === 'admin-dashboard' || currentView === 'admin') && <AdminDashboard />}
 
-        {currentView === 'agent-dashboard' && <AgentDashboard />}
+        {(currentView === 'agent-dashboard' || currentView === 'agents') && <AgentDashboard />}
 
         {currentView === 'customer-portal' && (
           <CustomerPortal onOpenSiteVisitModal={() => handleOpenSiteVisit()} />

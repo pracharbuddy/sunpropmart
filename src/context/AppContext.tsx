@@ -132,6 +132,60 @@ interface AppContextType {
   showToast: (msg: string) => void;
 }
 
+const parseUrlRoute = (pathname: string): { view: string; propertySlug?: string; projectSlug?: string; blogSlug?: string } => {
+  const clean = pathname.replace(/\/$/, '') || '/';
+  if (clean === '/' || clean === '') return { view: 'home' };
+  if (clean === '/about') return { view: 'about' };
+  if (clean === '/properties') return { view: 'properties' };
+  if (clean.startsWith('/properties/')) {
+    const slug = clean.replace('/properties/', '');
+    return { view: 'property-detail', propertySlug: slug };
+  }
+  if (clean === '/projects') return { view: 'projects' };
+  if (clean.startsWith('/projects/')) {
+    const slug = clean.replace('/projects/', '');
+    return { view: 'project-detail', projectSlug: slug };
+  }
+  if (clean === '/agents' || clean === '/agent-dashboard') return { view: 'agent-dashboard' };
+  if (clean === '/admin' || clean === '/admin-dashboard') return { view: 'admin-dashboard' };
+  if (clean === '/contact') return { view: 'contact' };
+  if (clean === '/services') return { view: 'services' };
+  if (clean === '/government-work') return { view: 'government-work' };
+  if (clean === '/construction') return { view: 'construction' };
+  if (clean === '/investment') return { view: 'investment' };
+  if (clean === '/blog') return { view: 'blog' };
+  if (clean.startsWith('/blog/')) {
+    const slug = clean.replace('/blog/', '');
+    return { view: 'blog-detail', blogSlug: slug };
+  }
+  if (clean === '/customer-portal') return { view: 'customer-portal' };
+  return { view: 'home' };
+};
+
+const routeToPath = (view: string, params?: { propertySlug?: string; projectSlug?: string; blogSlug?: string }): string => {
+  switch (view) {
+    case 'home': return '/';
+    case 'about': return '/about';
+    case 'properties': return '/properties';
+    case 'property-detail': return params?.propertySlug ? `/properties/${params.propertySlug}` : '/properties';
+    case 'projects': return '/projects';
+    case 'project-detail': return params?.projectSlug ? `/projects/${params.projectSlug}` : '/projects';
+    case 'agent-dashboard':
+    case 'agents': return '/agents';
+    case 'admin-dashboard':
+    case 'admin': return '/admin';
+    case 'contact': return '/contact';
+    case 'services': return '/services';
+    case 'government-work': return '/government-work';
+    case 'construction': return '/construction';
+    case 'investment': return '/investment';
+    case 'blog': return '/blog';
+    case 'blog-detail': return params?.blogSlug ? `/blog/${params.blogSlug}` : '/blog';
+    case 'customer-portal': return '/customer-portal';
+    default: return `/${view}`;
+  }
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -166,10 +220,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser ? currentUser.role : 'admin';
   });
 
-  const [currentView, setCurrentView] = useState<string>('home');
-  const [selectedPropertySlug, setSelectedPropertySlug] = useState<string | null>(null);
-  const [selectedProjectSlug, setSelectedProjectSlug] = useState<string | null>(null);
-  const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(null);
+  const initialRoute = typeof window !== 'undefined' ? parseUrlRoute(window.location.pathname) : { view: 'home' };
+  const [currentView, setCurrentView] = useState<string>(initialRoute.view);
+  const [selectedPropertySlug, setSelectedPropertySlug] = useState<string | null>(initialRoute.propertySlug || null);
+  const [selectedProjectSlug, setSelectedProjectSlug] = useState<string | null>(initialRoute.projectSlug || null);
+  const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(initialRoute.blogSlug || null);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -348,6 +403,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     navigate('home');
   };
 
+  // Popstate listener for browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const parsed = parseUrlRoute(window.location.pathname);
+      setCurrentView(parsed.view);
+      setSelectedPropertySlug(parsed.propertySlug || null);
+      setSelectedProjectSlug(parsed.projectSlug || null);
+      setSelectedBlogSlug(parsed.blogSlug || null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Navigation
   const navigate = (
     view: string,
@@ -358,6 +427,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (params?.propertySlug) setSelectedPropertySlug(params.propertySlug);
     if (params?.projectSlug) setSelectedProjectSlug(params.projectSlug);
     if (params?.blogSlug) setSelectedBlogSlug(params.blogSlug);
+
+    if (typeof window !== 'undefined') {
+      const targetPath = routeToPath(view, params);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ view, params }, '', targetPath);
+      }
+    }
   };
 
   // Favorites
