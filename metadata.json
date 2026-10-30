@@ -1,0 +1,7 @@
+{
+  "name": "SUNPROPMART - Real Estate & Construction Platform",
+  "description": "Full-stack corporate real estate, construction, and government works platform with role-based access control, property workflows, CRM, and Supabase integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

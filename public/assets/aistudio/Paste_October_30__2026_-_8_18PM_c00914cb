@@ -1,0 +1,1617 @@
+# BUILD SUNPROPMART — FULL-STACK REAL ESTATE & CONSTRUCTION PLATFORM
+
+You are a senior full-stack architect, UI/UX designer, database engineer, security engineer, SEO engineer and mobile-responsive application developer.
+
+Build a production-ready full-stack platform for **SUNPROPMART**, a real estate and construction company.
+
+SUNPROPMART is NOT a public real-estate marketplace like 99acres or Magicbricks.
+
+SUNPROPMART is a company-controlled real estate platform where:
+- SUNPROPMART manages all properties.
+- Authorized SUNPROPMART agents can add properties.
+- Agents can edit their permitted properties.
+- Agents cannot directly delete properties.
+- Agents can submit delete requests.
+- Agents can submit properties for publishing, but approval is required.
+- Agents can request price changes, but approval is required.
+- Public users can browse SUNPROPMART properties and projects.
+- Public users cannot freely post their own properties.
+- Admin controls the entire platform.
+
+The platform must include:
+
+1. Public Website
+2. Admin Panel
+3. Agent Panel
+4. Customer functionality
+5. Complete CMS
+6. Property Management System
+7. Agent Management System
+8. Lead CRM
+9. Project Management
+10. Construction Management
+11. Government Works section
+12. Blog/News CMS
+13. SEO Management
+14. Media Management
+15. Notifications
+16. Role-Based Access Control
+17. Supabase backend
+18. Fully responsive web design
+19. Mobile-first experience
+20. PWA-ready architecture
+21. Production-quality security
+22. Scalable architecture
+
+==================================================
+1. TECHNOLOGY STACK
+==================================================
+
+Use the following stack:
+
+Frontend:
+- Next.js
+- TypeScript
+- React
+- Tailwind CSS
+- Modern reusable component architecture
+- Server-side rendering where useful
+- Static generation where useful
+- Dynamic metadata
+- Responsive design
+
+Backend:
+- Supabase
+
+Use Supabase for:
+- PostgreSQL database
+- Supabase Auth
+- Supabase Storage
+- Row Level Security
+- Realtime
+- Edge Functions where necessary
+
+Do NOT create a separate Node/NestJS backend unless absolutely necessary.
+
+Database:
+- Supabase PostgreSQL
+
+Authentication:
+- Supabase Auth
+
+Storage:
+- Supabase Storage
+
+Mobile:
+- Keep the architecture API-ready for a future React Native / Expo customer and agent mobile application.
+- The current web application must be fully responsive and mobile-first.
+- Do not create fake mobile-only functionality.
+
+==================================================
+2. BRANDING / DESIGN SYSTEM
+==================================================
+
+SUNPROPMART branding must use the supplied SUNPROPMART logo as the primary brand reference.
+
+Primary visual identity:
+
+- Deep Navy Blue
+- Royal/Dark Navy
+- Premium Gold
+- White
+- Soft Light Gray
+- Warm Off-White where appropriate
+
+The design must feel:
+
+- Premium
+- Corporate
+- Trustworthy
+- Modern
+- Professional
+- Real-estate focused
+- Construction/infrastructure focused
+
+Avoid:
+- Cheap marketplace appearance
+- Excessive gradients
+- Excessive animations
+- Clutter
+- Generic template appearance
+- Bright random colors
+
+Gold should be used for:
+- Primary CTA
+- Active navigation
+- Important highlights
+- Premium accents
+- Icons where appropriate
+
+Navy should be used for:
+- Header
+- Footer
+- Sidebar
+- Admin navigation
+- Major sections
+
+The interface must have:
+- Consistent spacing
+- Rounded cards
+- Professional typography
+- Strong visual hierarchy
+- Excellent desktop layout
+- Excellent tablet layout
+- Excellent mobile layout
+
+==================================================
+3. PUBLIC WEBSITE
+==================================================
+
+Create a complete public corporate website.
+
+Main navigation:
+
+HOME
+PROPERTIES
+PROJECTS
+SERVICES
+CONSTRUCTION
+GOVERNMENT WORK
+ABOUT US
+BLOG
+CONTACT
+
+Header:
+- SUNPROPMART logo
+- Navigation
+- Search icon
+- Enquiry Now button
+- Mobile hamburger menu
+
+Top bar:
+- Phone
+- Email
+- Location
+- Social media icons
+
+==================================================
+4. HOMEPAGE
+==================================================
+
+Create a premium full homepage with these sections:
+
+1. Top contact bar
+2. Main navigation
+3. Hero section
+4. Property search
+5. Services
+6. Featured Properties
+7. Ongoing Projects
+8. Completed Projects
+9. Statistics
+10. Complete Real Estate & Construction Solutions
+11. Government Works
+12. Why Choose SUNPROPMART
+13. Company video/visual section
+14. Testimonials
+15. Latest News / Blog
+16. Partners / Authorities
+17. CTA
+18. Footer
+
+Hero headline:
+
+"Building Properties.
+Creating Opportunities."
+
+Supporting text:
+
+"Sunpropmart is a real estate and construction company providing property sale, purchase, rental, construction and government & private project services."
+
+Hero CTAs:
+- Explore Properties
+- Our Services
+
+Property search:
+- Buy
+- Rent
+- Projects
+- Property Type
+- Location
+- Budget
+- Search Properties
+
+Featured properties must come dynamically from Supabase.
+
+Do NOT hard-code property cards.
+
+==================================================
+5. PROPERTY SYSTEM
+==================================================
+
+Create a complete property management system.
+
+Property categories:
+
+Residential:
+- Apartment
+- Flat
+- Villa
+- Independent House
+- Builder Floor
+- Farm House
+
+Commercial:
+- Office
+- Shop
+- Showroom
+- Warehouse
+- Industrial Property
+- Commercial Building
+
+Land:
+- Residential Plot
+- Commercial Plot
+- Agricultural Land
+- Industrial Land
+- Other Land
+
+Listing types:
+- Sale
+- Rent
+- Lease
+
+Property statuses:
+- Draft
+- Submitted
+- Under Review
+- Changes Required
+- Approved
+- Published
+- Rejected
+- Sold
+- Rented
+- Archived
+- Delete Requested
+
+==================================================
+6. PROPERTY DATA MODEL
+==================================================
+
+Create proper Supabase tables for:
+
+properties
+property_types
+property_media
+property_documents
+property_amenities
+property_price_history
+property_status_history
+property_features
+
+Property fields should include:
+
+- id
+- property_id
+- title
+- slug
+- property_type
+- listing_type
+- status
+- description
+- short_description
+- price
+- price_per_sqft
+- rent
+- security_deposit
+- maintenance
+- area
+- carpet_area
+- builtup_area
+- bedrooms
+- bathrooms
+- floor
+- total_floors
+- parking
+- facing
+- furnishing
+- construction_year
+- rera_number
+- state
+- district
+- city
+- locality
+- sector
+- address
+- pincode
+- latitude
+- longitude
+- assigned_agent_id
+- created_by
+- approved_by
+- published_at
+- created_at
+- updated_at
+
+Generate property IDs automatically.
+
+Example:
+
+SPM-000001
+SPM-000002
+SPM-000003
+
+Generate SEO-friendly slugs automatically.
+
+==================================================
+7. PROPERTY MEDIA
+==================================================
+
+Use Supabase Storage.
+
+Property media types:
+
+- Featured Image
+- Gallery Images
+- Video
+- Floor Plan
+- Brochure
+- 360 Tour
+
+Allow drag-and-drop image upload.
+
+Allow image reordering.
+
+Allow selecting a featured image.
+
+Generate optimized image URLs where possible.
+
+Do not expose private documents publicly.
+
+==================================================
+8. PROPERTY DOCUMENTS
+==================================================
+
+Create secure document management.
+
+Documents may include:
+
+- Ownership documents
+- Registry
+- Approval documents
+- RERA documents
+- Legal documents
+- Other supporting documents
+
+Documents must NOT be publicly accessible.
+
+Use authenticated access / signed URLs.
+
+Only authorized Admin / Property Manager / permitted Agent should access them.
+
+==================================================
+9. AGENT PERMISSIONS
+==================================================
+
+Implement exact Role-Based Access Control.
+
+Agent permissions:
+
+Property Add:
+YES
+
+Property Edit:
+YES
+
+Property Delete:
+NO
+
+Delete Request:
+YES
+
+Property Publish:
+Agent can submit publish request
+Admin approval required
+
+Property Draft:
+YES
+
+Customer Leads:
+YES
+
+Price Change:
+Agent can submit request
+Admin approval required
+
+Property Images Upload:
+YES
+
+Property Video Upload:
+YES
+
+Documents Upload:
+YES
+
+Agent Management:
+NO
+
+Reports:
+LIMITED
+
+Important:
+Do NOT rely only on frontend button hiding.
+
+Use Supabase Row Level Security to enforce permissions at database level.
+
+==================================================
+10. PROPERTY APPROVAL WORKFLOW
+==================================================
+
+Implement:
+
+Agent
+→ Create Property
+→ Draft
+→ Submit for Review
+→ Under Review
+
+Admin can:
+
+Approve
+→ Published
+
+Reject
+→ Rejected
+
+Request Changes
+→ Changes Required
+→ Agent edits
+→ Resubmits
+
+Agent must NEVER be able to directly publish a property without required approval.
+
+==================================================
+11. PRICE CHANGE WORKFLOW
+==================================================
+
+Create:
+
+property_price_change_requests
+
+Fields:
+
+- id
+- property_id
+- requested_by
+- old_price
+- new_price
+- reason
+- status
+- reviewed_by
+- review_comment
+- created_at
+- reviewed_at
+
+Workflow:
+
+Agent
+→ Price Change Request
+→ Admin Review
+→ Approve / Reject
+
+Only after approval should the actual property price change.
+
+Maintain complete price history.
+
+==================================================
+12. DELETE WORKFLOW
+==================================================
+
+Agent cannot directly delete a property.
+
+Agent:
+→ Delete Request
+→ Reason
+→ Admin Review
+→ Approve / Reject
+
+Use soft deletion.
+
+Never permanently delete important property records by default.
+
+Keep:
+- deleted_at
+- deleted_by
+- delete_reason
+
+==================================================
+13. PROPERTY PUBLIC PAGE
+==================================================
+
+Create a premium property details page.
+
+Include:
+
+- Property gallery
+- Video
+- Property title
+- Price
+- Property ID
+- Verification status
+- Location
+- Area
+- Bedrooms
+- Bathrooms
+- Parking
+- Amenities
+- Description
+- Property details
+- Floor plan
+- Map
+- Assigned consultant
+- Call button
+- WhatsApp button
+- Enquiry button
+- Schedule Site Visit
+- Similar properties
+
+Generate structured SEO metadata dynamically.
+
+==================================================
+14. PROPERTY LISTING PAGE
+==================================================
+
+Create:
+
+/properties
+
+Filters:
+
+- Buy / Rent
+- Property Type
+- Location
+- Price
+- Area
+- Bedrooms
+- Bathrooms
+- Furnishing
+- Property Status
+
+Sorting:
+
+- Latest
+- Price Low to High
+- Price High to Low
+- Area
+- Featured
+
+Use server-side filtering/pagination where appropriate.
+
+Do not load thousands of properties into the browser.
+
+==================================================
+15. PROJECT MANAGEMENT
+==================================================
+
+Create project management.
+
+Project categories:
+
+- Government Projects
+- Private Projects
+- Residential Projects
+- Commercial Projects
+- Infrastructure Projects
+- Construction Projects
+
+Project statuses:
+
+- Upcoming
+- Ongoing
+- Completed
+- Archived
+
+Project fields:
+
+- Project Name
+- Slug
+- Description
+- Client
+- Location
+- Project Type
+- Status
+- Start Date
+- Completion Date
+- Images
+- Videos
+- Documents
+- Scope
+- Highlights
+- Created By
+- SEO metadata
+
+==================================================
+16. GOVERNMENT WORKS
+==================================================
+
+Create a dedicated public section:
+
+/government-work
+
+Include:
+
+- Government Construction
+- Infrastructure
+- Civil Works
+- Tender Projects
+- Maintenance
+- Development Works
+- Completed Government Projects
+- Ongoing Government Projects
+
+Admin must be able to add/edit/delete/manage government projects.
+
+==================================================
+17. CONSTRUCTION MODULE
+==================================================
+
+Create construction project management.
+
+Include:
+
+- Construction Projects
+- Client
+- Site
+- Project Status
+- Milestones
+- Progress
+- Documents
+- Photos
+- Team
+- Start Date
+- Expected Completion
+- Completion
+- Reports
+
+==================================================
+18. SERVICES CMS
+==================================================
+
+Create dynamic Services management.
+
+Services:
+
+- Property Sale
+- Property Purchase
+- Property Rental
+- Property Management
+- Construction
+- Government Works
+- Private Construction
+- Legal Documentation
+- Leasing
+- Investment Consultation
+
+Admin must be able to:
+- Add
+- Edit
+- Delete
+- Reorder
+- Publish/unpublish
+- Add image
+- Add SEO metadata
+
+==================================================
+19. AGENT MANAGEMENT
+==================================================
+
+Admin can:
+
+- Add Agent
+- Edit Agent
+- Activate Agent
+- Deactivate Agent
+- Assign Area
+- Assign Role
+- Assign Permissions
+- View Performance
+- View Properties
+- View Leads
+
+Agent profile fields:
+
+- Name
+- Profile photo
+- Agent ID
+- Phone
+- Email
+- Designation
+- Areas
+- Experience
+- Bio
+- Status
+
+Agent management must be ADMIN ONLY.
+
+==================================================
+20. AGENT DASHBOARD
+==================================================
+
+Create a professional dashboard.
+
+Metrics:
+
+- Total Properties
+- Draft
+- Under Review
+- Published
+- Changes Required
+- Sold/Rented
+- Delete Requests
+- New Leads
+- Site Visits
+- Conversions
+
+Sidebar:
+
+Dashboard
+My Properties
+Add Property
+Leads
+Customers
+Site Visits
+Documents
+Reports
+Profile
+Notifications
+
+Agent should only see data they are authorized to see.
+
+==================================================
+21. ADMIN DASHBOARD
+==================================================
+
+Create a complete admin dashboard.
+
+Dashboard cards:
+
+- Total Properties
+- Published Properties
+- Pending Approvals
+- Agents
+- Customers
+- Leads
+- Projects
+- Site Visits
+- Deals
+- Revenue
+
+Admin navigation:
+
+Dashboard
+Properties
+Projects
+Agents
+Customers
+Leads
+Site Visits
+CRM
+Construction
+Government Works
+Services
+Pages
+Blog
+Media
+SEO
+Testimonials
+FAQs
+Notifications
+Reports
+Users
+Roles & Permissions
+Audit Logs
+Settings
+
+==================================================
+22. CMS
+==================================================
+
+The website must be CMS-driven.
+
+Admin must be able to create pages without editing code.
+
+Create:
+
+pages
+page_sections
+
+Page fields:
+
+- Title
+- Slug
+- Content
+- Status
+- Featured Image
+- Template
+- SEO
+- Published Date
+
+Sections should support:
+
+- Hero
+- Text
+- Image
+- Image + Text
+- Cards
+- Property Grid
+- Project Grid
+- Services
+- Testimonials
+- FAQ
+- CTA
+- Statistics
+- Gallery
+- Video
+
+Allow:
+- Enable/Disable
+- Reorder
+- Edit
+- Duplicate
+
+==================================================
+23. BLOG / POST CMS
+==================================================
+
+Create complete blog management.
+
+Admin can:
+
+- Add Post
+- Edit Post
+- Save Draft
+- Publish
+- Schedule
+- Unpublish
+- Delete
+- Add Category
+- Add Tags
+- Add Author
+- Upload Featured Image
+
+Fields:
+
+- Title
+- Slug
+- Excerpt
+- Content
+- Featured Image
+- Category
+- Tags
+- Author
+- Published At
+- Status
+- SEO Title
+- Meta Description
+- Canonical URL
+- OG Image
+
+==================================================
+24. CRM / LEAD MANAGEMENT
+==================================================
+
+Create complete lead management.
+
+Lead sources:
+
+- Website
+- Property Page
+- Phone
+- WhatsApp
+- Facebook
+- Instagram
+- Google
+- Referral
+- Agent
+
+Lead statuses:
+
+- New
+- Contacted
+- Interested
+- Follow-up
+- Site Visit
+- Negotiation
+- Converted
+- Lost
+
+Lead fields:
+
+- Customer
+- Property
+- Agent
+- Source
+- Status
+- Notes
+- Follow-up date
+- Created date
+
+Admin can assign leads to agents.
+
+Agent can manage only permitted leads.
+
+==================================================
+25. SITE VISIT SYSTEM
+==================================================
+
+Customers can request a site visit.
+
+Fields:
+
+- Property
+- Customer
+- Date
+- Time
+- Agent
+- Status
+- Notes
+
+Statuses:
+
+- Requested
+- Confirmed
+- Rescheduled
+- Completed
+- Cancelled
+
+Send notifications where configured.
+
+==================================================
+26. CUSTOMER SYSTEM
+==================================================
+
+Create customer accounts.
+
+Customer can:
+
+- Register
+- Login
+- Browse properties
+- Save favorites
+- View enquiries
+- Schedule site visits
+- View notifications
+- Manage profile
+
+Create:
+
+customers
+favorites
+enquiries
+site_visits
+notifications
+
+==================================================
+27. SEO SYSTEM
+==================================================
+
+SEO must be a first-class feature.
+
+Every dynamic page must support:
+
+- SEO Title
+- Meta Description
+- Canonical URL
+- Robots
+- Open Graph
+- Twitter metadata
+- OG Image
+- Schema Type
+
+Create automatic:
+
+/sitemap.xml
+/robots.txt
+
+Generate dynamic sitemap entries for:
+
+- Pages
+- Properties
+- Projects
+- Blog Posts
+- Services
+
+Use SEO-friendly URLs.
+
+Never use URLs like:
+
+/property?id=123
+
+Prefer:
+
+/properties/3-bhk-apartment-greater-noida-west
+
+==================================================
+28. STRUCTURED DATA
+==================================================
+
+Implement JSON-LD where appropriate:
+
+- Organization
+- WebSite
+- BreadcrumbList
+- RealEstateAgent
+- Residence
+- Apartment
+- Article
+- FAQPage
+- LocalBusiness
+
+Do not add schema types where they are not appropriate.
+
+==================================================
+29. PERFORMANCE
+==================================================
+
+The website must be fast.
+
+Implement:
+
+- Next.js server rendering
+- Static generation where appropriate
+- Image optimization
+- Lazy loading
+- Pagination
+- Database indexes
+- Efficient queries
+- Minimal JavaScript
+- Code splitting
+- Loading states
+- Skeleton loaders
+
+Avoid unnecessary client-side rendering.
+
+==================================================
+30. RESPONSIVE DESIGN
+==================================================
+
+The entire application must be fully responsive.
+
+Support:
+
+- Desktop
+- Laptop
+- Tablet
+- Mobile
+
+Do not simply shrink desktop layouts.
+
+Create proper mobile layouts.
+
+Mobile:
+- Hamburger navigation
+- Bottom navigation where appropriate
+- Touch-friendly controls
+- Responsive property cards
+- Swipe image gallery
+- Mobile filters
+- Sticky CTA where useful
+
+Admin and Agent dashboards must also work properly on tablets and mobile.
+
+==================================================
+31. MEDIA MANAGEMENT
+==================================================
+
+Create centralized media library.
+
+Media categories:
+
+- Images
+- Videos
+- Documents
+- PDFs
+- Brochures
+- Floor Plans
+- Logos
+
+Allow:
+- Upload
+- Preview
+- Search
+- Delete
+- Reuse
+- Replace
+
+Use Supabase Storage.
+
+==================================================
+32. NOTIFICATION SYSTEM
+==================================================
+
+Create notifications for:
+
+Agent:
+- New Lead
+- Property Approved
+- Property Rejected
+- Property Changes Required
+- Price Request Approved
+- Price Request Rejected
+- Delete Request Approved
+- Site Visit
+
+Customer:
+- Enquiry Received
+- Agent Assigned
+- Site Visit Confirmation
+- Site Visit Reminder
+- Property Updates
+
+Support architecture for:
+
+- In-App
+- Email
+- Push
+- SMS
+- WhatsApp
+
+Do not expose secret API keys in frontend.
+
+==================================================
+33. SECURITY
+==================================================
+
+Security is mandatory.
+
+Implement:
+
+- Supabase Auth
+- Row Level Security
+- Role-based access
+- Permission-based access
+- Secure storage policies
+- Private document buckets
+- Input validation
+- File validation
+- File size limits
+- Rate limiting where appropriate
+- Secure server functions
+- Audit logs
+
+Never trust frontend permissions.
+
+Never expose Supabase service-role keys in browser/client code.
+
+Use environment variables.
+
+==================================================
+34. AUDIT LOG
+==================================================
+
+Track important actions:
+
+- Login
+- Logout
+- Property Created
+- Property Edited
+- Property Submitted
+- Property Approved
+- Property Rejected
+- Price Change Requested
+- Price Change Approved
+- Delete Requested
+- Delete Approved
+- Agent Created
+- Agent Disabled
+- Page Published
+- Post Published
+
+Store:
+
+- User
+- Action
+- Entity
+- Entity ID
+- Old Data where appropriate
+- New Data where appropriate
+- Timestamp
+- IP/User Agent where legally appropriate
+
+==================================================
+35. SUPABASE DATABASE
+==================================================
+
+Create the required SQL migration/schema.
+
+Create proper:
+
+- Primary keys
+- Foreign keys
+- Indexes
+- Unique constraints
+- Timestamps
+- Soft delete fields
+- Status fields
+
+Important indexes should include:
+
+- property slug
+- property status
+- property type
+- listing type
+- city
+- locality
+- agent ID
+- published_at
+- project slug
+- post slug
+- lead status
+
+==================================================
+36. SUPABASE RLS
+==================================================
+
+Write actual RLS policies.
+
+Examples:
+
+Public:
+- Can read published properties
+- Can read published projects
+- Can read published pages
+- Can read published posts
+- Cannot modify data
+
+Agent:
+- Can create properties
+- Can edit permitted properties
+- Cannot directly delete
+- Can create delete requests
+- Can create publish requests
+- Can create price-change requests
+- Can view assigned/permitted leads
+- Cannot manage agents
+
+Admin:
+- Full management permissions
+
+Do NOT leave important tables with unrestricted access.
+
+==================================================
+37. ENVIRONMENT VARIABLES
+==================================================
+
+Create .env.example.
+
+Expected variables should include appropriate Supabase values such as:
+
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+Server-only secrets must never use NEXT_PUBLIC_.
+
+Do not hard-code credentials.
+
+==================================================
+38. ERROR HANDLING
+==================================================
+
+Create:
+
+- Loading states
+- Empty states
+- Error states
+- Success messages
+- Confirmation dialogs
+- Form validation
+- API error handling
+- Upload errors
+
+Do not allow silent failures.
+
+==================================================
+39. UX
+==================================================
+
+Use:
+
+- Toast notifications
+- Confirmation modals
+- Skeleton loading
+- Empty state illustrations
+- Breadcrumbs
+- Search
+- Pagination
+- Filters
+- Sort
+- Responsive tables
+- Accessible forms
+
+Use accessible labels and keyboard navigation.
+
+==================================================
+40. ADMIN CONTENT CONTROL
+==================================================
+
+The admin must be able to manage without developer intervention:
+
+- Homepage
+- Header
+- Footer
+- Navigation
+- Properties
+- Projects
+- Agents
+- Services
+- Government Works
+- Construction Projects
+- Blog
+- Testimonials
+- FAQs
+- Media
+- SEO
+- Contact details
+- Social links
+- Company information
+
+Do not hard-code business content.
+
+==================================================
+41. CONTACT SYSTEM
+==================================================
+
+Contact page:
+
+- Name
+- Email
+- Phone
+- Subject
+- Message
+
+Store enquiries in Supabase.
+
+Admin should be able to view/manage contact enquiries.
+
+==================================================
+42. SEARCH
+==================================================
+
+Implement property search.
+
+Search by:
+
+- Keyword
+- Location
+- Property type
+- Listing type
+- Price
+- Area
+- Bedrooms
+- Status
+
+Use debounced search where appropriate.
+
+Create scalable search architecture.
+
+==================================================
+43. MOBILE APPLICATION PREPARATION
+==================================================
+
+The backend must be designed so that future React Native applications can use the same Supabase backend.
+
+Do not create web-only database logic that prevents mobile clients from using the API.
+
+Customer app features:
+
+- Login
+- Search
+- Properties
+- Property detail
+- Favorites
+- Enquiry
+- Site visit
+- Notifications
+- Profile
+
+Agent app features:
+
+- Login
+- Dashboard
+- Add property
+- Property management
+- Upload photos/videos
+- Leads
+- Customers
+- Site visits
+- Notifications
+- Performance
+
+==================================================
+44. CODE QUALITY
+==================================================
+
+Use:
+
+- TypeScript strict mode
+- Reusable components
+- Reusable forms
+- Reusable tables
+- Reusable modals
+- Clean folder structure
+- Server/client separation
+- Proper types
+- No unnecessary duplication
+
+Do not generate a single giant component.
+
+Do not put the entire application in one file.
+
+==================================================
+45. IMPORTANT DEVELOPMENT RULES
+==================================================
+
+1. Do not create fake backend functionality.
+2. Do not use localStorage as the primary database.
+3. Do not hard-code property data.
+4. Do not hard-code agent data.
+5. Do not hard-code blog data.
+6. Do not hard-code CMS content.
+7. Use Supabase for real persistent data.
+8. Use actual CRUD operations.
+9. Use real authentication.
+10. Implement actual RLS.
+11. Implement real file upload.
+12. Implement actual approval workflows.
+13. Do not bypass permissions from frontend.
+14. Do not expose service-role credentials.
+15. Do not create fake "connected" status.
+16. Do not create buttons that do nothing.
+17. Every major button must have a working action or clearly show "coming soon".
+18. Maintain proper error handling.
+19. Maintain responsive design.
+20. Maintain SEO.
+21. Maintain accessibility.
+22. Keep the architecture scalable.
+
+==================================================
+46. DEVELOPMENT ORDER
+==================================================
+
+Build the project in this order:
+
+PHASE 1:
+- Project setup
+- Design system
+- Supabase connection
+- Authentication
+- Database schema
+- RLS
+- Base layouts
+
+PHASE 2:
+- Public website
+- Homepage
+- Properties
+- Property details
+- Projects
+- Services
+- About
+- Contact
+
+PHASE 3:
+- Admin dashboard
+- CMS
+- Properties
+- Agents
+- Projects
+- Blog
+- Media
+- SEO
+
+PHASE 4:
+- Agent dashboard
+- Agent permissions
+- Property workflow
+- Price change workflow
+- Delete workflow
+- Leads
+
+PHASE 5:
+- CRM
+- Site visits
+- Customers
+- Notifications
+
+PHASE 6:
+- Construction
+- Government Works
+- Reports
+- Audit logs
+
+PHASE 7:
+- Performance optimization
+- SEO optimization
+- Accessibility
+- Security review
+- Responsive review
+- Production cleanup
+
+==================================================
+47. IMPORTANT: DO NOT STOP AT UI
+==================================================
+
+I want a real full-stack application.
+
+Do not only create static UI screens.
+
+For every major module:
+
+UI
++
+Database
++
+CRUD
++
+Authentication
++
+Authorization
++
+RLS
++
+Validation
++
+Error handling
+
+must be considered.
+
+If Supabase credentials are not available yet, create the complete Supabase integration structure and .env.example, then clearly identify which environment variables must be added.
+
+==================================================
+48. FINAL QUALITY STANDARD
+==================================================
+
+The final product should look and behave like a professional commercial SaaS/corporate real-estate platform.
+
+It should NOT look like:
+- A beginner project
+- A generic AI-generated dashboard
+- A simple CRUD demo
+- A static template
+- A marketplace clone
+
+It should look like a premium SUNPROPMART-owned platform.
+
+Use the supplied SUNPROPMART logo and navy/gold visual identity consistently.
+
+Before considering the application complete, verify:
+
+- Public pages work
+- Admin login works
+- Agent login works
+- Role permissions work
+- RLS policies work
+- Property CRUD works
+- Property approval works
+- Price approval works
+- Delete request works
+- Image upload works
+- Document security works
+- CMS works
+- Blog works
+- Projects work
+- Leads work
+- Site visits work
+- SEO metadata works
+- Sitemap works
+- Responsive layouts work
+- Mobile layouts work
+- No secrets are exposed
+- No major buttons are non-functional
+- No critical data is hard-coded
+
+Start by creating the project architecture, database schema, Supabase SQL migrations, RLS policies, authentication structure, design system, and core layouts.
+
+Then implement the application module by module.
+
+Do not skip backend implementation just because the frontend is visually complete.
