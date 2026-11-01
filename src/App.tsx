@@ -26,6 +26,10 @@ import { CustomerPortal } from './components/customer/CustomerPortal';
 import { EnquiryModal } from './components/modals/EnquiryModal';
 import { SiteVisitModal } from './components/modals/SiteVisitModal';
 import { AuthModal } from './components/modals/AuthModal';
+import { CareersView } from './components/careers/CareersView';
+import { PrivacyPolicyView } from './components/legal/PrivacyPolicyView';
+import { TermsView } from './components/legal/TermsView';
+import { SEOHead } from './components/common/SEOHead';
 import { Property, Project } from './types';
 import { Bell, CheckCircle2 } from 'lucide-react';
 
@@ -50,8 +54,117 @@ const AppContent: React.FC = () => {
     setIsSiteVisitModalOpen(true);
   };
 
+  // Dynamic SEO Configuration based on Route
+  const getRouteSeo = () => {
+    switch (currentView) {
+      case 'home':
+        return {
+          title: 'SunPropMart | Real Estate & Construction in Greater Noida & Delhi NCR',
+          description:
+            'Leading corporate real estate and heavy civil infrastructure firm delivering verified residential apartments, luxury villas, commercial plots, and government public works in Greater Noida and Delhi NCR.',
+          canonicalUrl: 'https://sunpropmart.in/',
+          ogType: 'website' as const,
+        };
+      case 'properties':
+        return {
+          title: 'Properties in Greater Noida & Delhi NCR | SunPropMart Listings',
+          description:
+            'Browse verified residential flats, luxury builder floors, commercial office spaces, and RERA-approved plots for sale and rent across Greater Noida West and Delhi NCR.',
+          canonicalUrl: 'https://sunpropmart.in/properties',
+        };
+      case 'projects':
+        return {
+          title: 'Featured Real Estate Projects in Delhi NCR | SunPropMart Developments',
+          description:
+            'Explore premier new launch and ongoing residential townships, commercial complexes, and YEIDA expressway developments in Greater Noida.',
+          canonicalUrl: 'https://sunpropmart.in/projects',
+        };
+      case 'services':
+      case 'investment':
+        return {
+          title: 'Real Estate & Investment Advisory Services | SunPropMart',
+          description:
+            'End-to-end real estate solutions: Property sales, rental management, NRI property care, commercial leasing, and portfolio advisory.',
+          canonicalUrl: 'https://sunpropmart.in/services',
+        };
+      case 'government-work':
+        return {
+          title: 'Government Works & Public Infrastructure | SunPropMart Civil Division',
+          description:
+            'Institutional public sector execution: Roadways, civic utilities, institutional structures, and government infrastructure contracts across Uttar Pradesh.',
+          canonicalUrl: 'https://sunpropmart.in/government-work',
+        };
+      case 'construction':
+        return {
+          title: 'Civil Construction & Turnkey Contracting | SunPropMart Engineering',
+          description:
+            'Commercial contracting, residential multi-story development, architectural planning, and turnkey structural engineering in Delhi NCR.',
+          canonicalUrl: 'https://sunpropmart.in/construction',
+        };
+      case 'blog':
+        return {
+          title: 'NCR Real Estate News & Market Insights | SunPropMart Blog',
+          description:
+            'Authoritative real estate market research, Jewar airport growth trends, RERA legal buyer guides, and property investment tips.',
+          canonicalUrl: 'https://sunpropmart.in/blog',
+        };
+      case 'about':
+        return {
+          title: 'About SunPropMart | Trusted Real Estate & Construction Partner',
+          description:
+            'Over 15 years delivering trusted residential, commercial, and civil infrastructure excellence in Greater Noida and Delhi NCR.',
+          canonicalUrl: 'https://sunpropmart.in/about',
+        };
+      case 'contact':
+        return {
+          title: 'Contact SunPropMart | Real Estate Office in Greater Noida',
+          description:
+            'Visit our corporate headquarters at Alpha-I Commercial Belt, Greater Noida. Call +91 98730 83899 or email info@sunpropmart.in.',
+          canonicalUrl: 'https://sunpropmart.in/contact',
+        };
+      case 'careers':
+        return {
+          title: 'Careers at SunPropMart | Join NCR’s Premier Real Estate Team',
+          description:
+            'Career openings for senior property consultants, civil engineers, CRM managers, and legal specialists in Greater Noida.',
+          canonicalUrl: 'https://sunpropmart.in/careers',
+        };
+      case 'privacy':
+        return {
+          title: 'Privacy Policy | SunPropMart Data Governance',
+          description:
+            'How SunPropMart safeguards your personal information, inquiries, and transaction records under Indian data protection laws.',
+          canonicalUrl: 'https://sunpropmart.in/privacy',
+        };
+      case 'terms':
+        return {
+          title: 'Terms & Conditions | SunPropMart Legal Mandate',
+          description:
+            'Governing terms and conditions for property listings, advisory mandates, site visits, and civil contracts.',
+          canonicalUrl: 'https://sunpropmart.in/terms',
+        };
+      case 'admin':
+      case 'admin-dashboard':
+      case 'agents':
+      case 'agent-dashboard':
+      case 'customer-portal':
+        return {
+          title: 'Staff Control Portal | SunPropMart',
+          description: 'Restricted administrative and agent dashboard.',
+          noIndex: true, // NEVER index staff and admin routes
+        };
+      default:
+        return {};
+    }
+  };
+
+  const seoData = getRouteSeo();
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
+      {/* Dynamic SEO Meta Injection */}
+      <SEOHead {...seoData} />
+
       {/* Primary Header */}
       <Header
         onOpenEnquiryModal={() => handleOpenEnquiry()}
@@ -110,6 +223,12 @@ const AppContent: React.FC = () => {
         {currentView === 'about' && <AboutView />}
 
         {currentView === 'contact' && <ContactView />}
+
+        {currentView === 'careers' && <CareersView />}
+
+        {currentView === 'privacy' && <PrivacyPolicyView />}
+
+        {currentView === 'terms' && <TermsView />}
 
         {(currentView === 'admin-dashboard' || currentView === 'admin') && <AdminDashboard />}
 

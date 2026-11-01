@@ -1,0 +1,41 @@
+# SunPropMart Real Estate & Construction - Search Engine Optimization Directive
+# https://sunpropmart.in
+
+User-agent: *
+Allow: /
+Allow: /properties
+Allow: /properties/*
+Allow: /projects
+Allow: /projects/*
+Allow: /services
+Allow: /services/*
+Allow: /government-work
+Allow: /construction
+Allow: /investment
+Allow: /blog
+Allow: /blog/*
+Allow: /about
+Allow: /contact
+Allow: /careers
+Allow: /privacy
+Allow: /terms
+
+# Disallow Private Portals, CRM & Administrative Workspaces
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /admin-dashboard
+Disallow: /agents
+Disallow: /agents/*
+Disallow: /agent-dashboard
+Disallow: /customer-portal
+Disallow: /private
+Disallow: /private/*
+Disallow: /account
+Disallow: /account/*
+Disallow: /internal
+Disallow: /internal/*
+Disallow: /api/*
+
+# Crawl Delay & Sitemap Reference
+Crawl-delay: 1
+Sitemap: https://sunpropmart.in/sitemap.xml

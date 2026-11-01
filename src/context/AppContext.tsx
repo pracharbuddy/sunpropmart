@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   Property,
   Project,
@@ -14,6 +14,8 @@ import {
   MediaItem,
   NotificationItem,
   UserRole,
+  PermissionAction,
+  CmsPageSection,
 } from '../types';
 import {
   SEED_PROFILES,
@@ -29,9 +31,21 @@ import {
   SEED_DELETE_REQUESTS,
   SEED_MEDIA,
 } from '../data/seedData';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import {
+  SupabaseHealth,
+  checkSupabaseConnection,
+  isSupabaseConfigured,
+  supabaseProjectId,
+  supabaseUrl,
+} from '../lib/supabase';
+import * as services from '../services';
 
 interface AppContextType {
+  // Supabase Backend Integration
+  supabaseHealth: SupabaseHealth;
+  refreshSupabaseHealth: () => Promise<SupabaseHealth>;
+  syncLocalToSupabase: () => Promise<{ success: boolean; message: string }>;
+
   // Authentication & RBAC
   currentUser: UserProfile | null;
   currentRole: UserRole | 'guest';
@@ -39,6 +53,7 @@ interface AppContextType {
   loginAs: (role: UserRole) => void;
   logout: () => void;
   allProfiles: UserProfile[];
+  can: (action: PermissionAction) => boolean;
 
   // Navigation & Routing
   currentView: string;
@@ -62,9 +77,11 @@ interface AppContextType {
   filterBudget: string;
   setFilterBudget: (budget: string) => void;
 
-  // Properties & Workflows
+  // Properties & Workflows (Supabase Source of Truth)
   properties: Property[];
-  addProperty: (propertyData: Partial<Property>) => Promise<Property>;
+  propertiesLoading: boolean;
+  refreshProperties: () => Promise<void>;
+  addProperty: (propertyData: Partial<Property>) => Promise<Property | null>;
   updateProperty: (id: string, propertyData: Partial<Property>) => Promise<void>;
   submitPropertyForReview: (id: string) => Promise<void>;
   approveProperty: (id: string, notes?: string) => Promise<void>;
@@ -81,12 +98,14 @@ interface AppContextType {
 
   // Projects & Construction
   projects: Project[];
-  addProject: (projectData: Partial<Project>) => Promise<Project>;
+  addProject: (projectData: Partial<Project>) => Promise<Project | null>;
   updateProject: (id: string, projectData: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
   // Leads & CRM
   leads: Lead[];
+  leadsLoading: boolean;
+  refreshLeads: () => Promise<void>;
   addLead: (leadData: Partial<Lead>) => Promise<void>;
   updateLeadStatus: (leadId: string, status: Lead['status'], noteText?: string) => Promise<void>;
   assignLeadToAgent: (leadId: string, agentId: string) => Promise<void>;
@@ -98,11 +117,16 @@ interface AppContextType {
 
   // Services & Blog
   services: ServiceItem[];
+  servicesList: ServiceItem[];
   addService: (service: Partial<ServiceItem>) => Promise<void>;
   updateService: (id: string, service: Partial<ServiceItem>) => Promise<void>;
   blogPosts: BlogPost[];
   addBlogPost: (post: Partial<BlogPost>) => Promise<void>;
   updateBlogPost: (id: string, post: Partial<BlogPost>) => Promise<void>;
+
+  // CMS Homepage Sections
+  homepageSections: CmsPageSection[];
+  updateSection: (id: string, data: Partial<CmsPageSection>) => Promise<void>;
 
   // Agents
   agents: UserProfile[];
@@ -132,7 +156,9 @@ interface AppContextType {
   showToast: (msg: string) => void;
 }
 
-const parseUrlRoute = (pathname: string): { view: string; propertySlug?: string; projectSlug?: string; blogSlug?: string } => {
+const parseUrlRoute = (
+  pathname: string
+): { view: string; propertySlug?: string; projectSlug?: string; blogSlug?: string } => {
   const clean = pathname.replace(/\/$/, '') || '/';
   if (clean === '/' || clean === '') return { view: 'home' };
   if (clean === '/about') return { view: 'about' };
@@ -158,250 +184,144 @@ const parseUrlRoute = (pathname: string): { view: string; propertySlug?: string;
     const slug = clean.replace('/blog/', '');
     return { view: 'blog-detail', blogSlug: slug };
   }
+  if (clean === '/careers') return { view: 'careers' };
+  if (clean === '/privacy') return { view: 'privacy' };
+  if (clean === '/terms') return { view: 'terms' };
   if (clean === '/customer-portal') return { view: 'customer-portal' };
   return { view: 'home' };
 };
 
-const routeToPath = (view: string, params?: { propertySlug?: string; projectSlug?: string; blogSlug?: string }): string => {
+const routeToPath = (
+  view: string,
+  params?: { propertySlug?: string; projectSlug?: string; blogSlug?: string }
+): string => {
   switch (view) {
-    case 'home': return '/';
-    case 'about': return '/about';
-    case 'properties': return '/properties';
-    case 'property-detail': return params?.propertySlug ? `/properties/${params.propertySlug}` : '/properties';
-    case 'projects': return '/projects';
-    case 'project-detail': return params?.projectSlug ? `/projects/${params.projectSlug}` : '/projects';
+    case 'home':
+      return '/';
+    case 'about':
+      return '/about';
+    case 'properties':
+      return '/properties';
+    case 'property-detail':
+      return params?.propertySlug ? `/properties/${params.propertySlug}` : '/properties';
+    case 'projects':
+      return '/projects';
+    case 'project-detail':
+      return params?.projectSlug ? `/projects/${params.projectSlug}` : '/projects';
     case 'agent-dashboard':
-    case 'agents': return '/agents';
+    case 'agents':
+      return '/agents';
     case 'admin-dashboard':
-    case 'admin': return '/admin';
-    case 'contact': return '/contact';
-    case 'services': return '/services';
-    case 'government-work': return '/government-work';
-    case 'construction': return '/construction';
-    case 'investment': return '/investment';
-    case 'blog': return '/blog';
-    case 'blog-detail': return params?.blogSlug ? `/blog/${params.blogSlug}` : '/blog';
-    case 'customer-portal': return '/customer-portal';
-    default: return `/${view}`;
+    case 'admin':
+      return '/admin';
+    case 'contact':
+      return '/contact';
+    case 'services':
+      return '/services';
+    case 'government-work':
+      return '/government-work';
+    case 'construction':
+      return '/construction';
+    case 'investment':
+      return '/investment';
+    case 'blog':
+      return '/blog';
+    case 'blog-detail':
+      return params?.blogSlug ? `/blog/${params.blogSlug}` : '/blog';
+    case 'careers':
+      return '/careers';
+    case 'privacy':
+      return '/privacy';
+    case 'terms':
+      return '/terms';
+    case 'customer-portal':
+      return '/customer-portal';
+    default:
+      return `/${view}`;
   }
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Local storage cache keys
-  const getStorage = <T,>(key: string, fallback: T): T => {
-    try {
-      const item = localStorage.getItem(`spm_${key}`);
-      return item ? JSON.parse(item) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
+  // Profiles & Auth State
+  const [allProfiles, setAllProfiles] = useState<UserProfile[]>(SEED_PROFILES);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(SEED_PROFILES[0]);
+  const [currentRole, setCurrentRole] = useState<UserRole | 'guest'>(SEED_PROFILES[0].role);
 
-  const setStorage = (key: string, value: any) => {
-    try {
-      localStorage.setItem(`spm_${key}`, JSON.stringify(value));
-    } catch (e) {
-      console.warn('LocalStorage error', e);
-    }
-  };
-
-  // State initialization
-  const [allProfiles, setAllProfiles] = useState<UserProfile[]>(() =>
-    getStorage('profiles', SEED_PROFILES)
-  );
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const saved = getStorage<UserProfile | null>('currentUser', null);
-    // default to Guest or Admin for demo ease, but let's provide Vikram (Admin) by default
-    return saved || SEED_PROFILES[0];
-  });
-  const [currentRole, setCurrentRole] = useState<UserRole | 'guest'>(() => {
-    return currentUser ? currentUser.role : 'admin';
-  });
-
+  // Router & View State
   const initialRoute = typeof window !== 'undefined' ? parseUrlRoute(window.location.pathname) : { view: 'home' };
   const [currentView, setCurrentView] = useState<string>(initialRoute.view);
   const [selectedPropertySlug, setSelectedPropertySlug] = useState<string | null>(initialRoute.propertySlug || null);
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<string | null>(initialRoute.projectSlug || null);
   const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(initialRoute.blogSlug || null);
 
-  // Search & Filters
+  // Global Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLocation, setFilterLocation] = useState('Any');
   const [filterPropertyType, setFilterPropertyType] = useState('Any');
   const [filterListingType, setFilterListingType] = useState('All');
   const [filterBudget, setFilterBudget] = useState('Any');
 
-  // Entities
-  const [properties, setProperties] = useState<Property[]>(() =>
-    getStorage('properties', SEED_PROPERTIES)
-  );
-  const [projects, setProjects] = useState<Project[]>(() =>
-    getStorage('projects', SEED_PROJECTS)
-  );
-  const [leads, setLeads] = useState<Lead[]>(() => getStorage('leads', SEED_LEADS));
-  const [siteVisits, setSiteVisits] = useState<SiteVisit[]>(() =>
-    getStorage('site_visits', SEED_SITE_VISITS)
-  );
-  const [services, setServices] = useState<ServiceItem[]>(() =>
-    getStorage('services', SEED_SERVICES)
-  );
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() =>
-    getStorage('blog_posts', SEED_BLOG_POSTS)
-  );
-  const [priceRequests, setPriceRequests] = useState<PropertyPriceChangeRequest[]>(() =>
-    getStorage('price_requests', SEED_PRICE_REQUESTS)
-  );
-  const [deleteRequests, setDeleteRequests] = useState<PropertyDeleteRequest[]>(() =>
-    getStorage('delete_requests', SEED_DELETE_REQUESTS)
-  );
-  const [favorites, setFavorites] = useState<string[]>(() =>
-    getStorage('favorites', ['prop-001'])
-  );
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() =>
-    getStorage('media', SEED_MEDIA)
-  );
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() =>
-    getStorage('audit_logs', SEED_AUDIT_LOGS)
-  );
+  // Supabase Source-of-Truth Data Collections
+  const [properties, setProperties] = useState<Property[]>(SEED_PROPERTIES);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
+
+  const [projects, setProjects] = useState<Project[]>(SEED_PROJECTS);
+  const [leads, setLeads] = useState<Lead[]>(SEED_LEADS);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+
+  const [siteVisits, setSiteVisits] = useState<SiteVisit[]>(SEED_SITE_VISITS);
+  const [servicesList, setServicesList] = useState<ServiceItem[]>(SEED_SERVICES);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(SEED_BLOG_POSTS);
+  const [homepageSections, setHomepageSections] = useState<CmsPageSection[]>(services.DEFAULT_HOMEPAGE_SECTIONS);
+  const [priceRequests, setPriceRequests] = useState<PropertyPriceChangeRequest[]>(SEED_PRICE_REQUESTS);
+  const [deleteRequests, setDeleteRequests] = useState<PropertyDeleteRequest[]>(SEED_DELETE_REQUESTS);
+  const [favorites, setFavorites] = useState<string[]>(['prop-001']);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(SEED_MEDIA);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(SEED_AUDIT_LOGS);
   const [testimonials] = useState<Testimonial[]>(SEED_TESTIMONIALS);
-
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'notif-1',
-      title: 'New Lead Assigned',
-      message: 'Priya Kapoor requested a site visit for ATS Nobility Luxury 3 BHK.',
-      type: 'lead',
-      link: 'agent-leads',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'notif-2',
-      title: 'Price Change Requested',
-      message: 'Rahul Sharma submitted a price change request for Gaur City 2.',
-      type: 'price_request',
-      link: 'admin-properties',
-      is_read: false,
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-  ]);
-
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  // Database Connection Health State
+  const [dbHealth, setDbHealth] = useState<SupabaseHealth>({
+    isConfigured: isSupabaseConfigured,
+    isConnected: false,
+    projectId: supabaseProjectId,
+    projectUrl: supabaseUrl,
+    tables: {
+      properties: false,
+      projects: false,
+      leads: false,
+      site_visits: false,
+      profiles: false,
+    },
+    hasTables: false,
+    message: isSupabaseConfigured ? 'Connecting to Supabase...' : 'Supabase credentials not configured',
+    checkedAt: new Date().toISOString(),
+  });
+
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 4000);
-  };
+  }, []);
 
-  // Sync to local storage
-  useEffect(() => {
-    setStorage('properties', properties);
-  }, [properties]);
+  const refreshDbHealth = useCallback(async (): Promise<SupabaseHealth> => {
+    const health = await checkSupabaseConnection();
+    setDbHealth(health);
+    return health;
+  }, []);
 
-  useEffect(() => {
-    setStorage('projects', projects);
-  }, [projects]);
-
-  useEffect(() => {
-    setStorage('leads', leads);
-  }, [leads]);
-
-  useEffect(() => {
-    setStorage('site_visits', siteVisits);
-  }, [siteVisits]);
-
-  useEffect(() => {
-    setStorage('price_requests', priceRequests);
-  }, [priceRequests]);
-
-  useEffect(() => {
-    setStorage('delete_requests', deleteRequests);
-  }, [deleteRequests]);
-
-  useEffect(() => {
-    setStorage('favorites', favorites);
-  }, [favorites]);
-
-  useEffect(() => {
-    setStorage('blog_posts', blogPosts);
-  }, [blogPosts]);
-
-  useEffect(() => {
-    setStorage('services', services);
-  }, [services]);
-
-  useEffect(() => {
-    setStorage('profiles', allProfiles);
-  }, [allProfiles]);
-
-  useEffect(() => {
-    setStorage('audit_logs', auditLogs);
-  }, [auditLogs]);
-
-  useEffect(() => {
-    setStorage('currentUser', currentUser);
-  }, [currentUser]);
-
-  // Audit Logging
-  const logAuditAction = (action: string, entity: string, entityId: string, details?: any) => {
-    const newLog: AuditLog = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      user_id: currentUser?.id,
-      user_name: currentUser?.full_name || 'Anonymous',
-      user_role: currentRole,
-      action,
-      entity,
-      entity_id: entityId,
-      details,
-      ip_address: '103.24.120.45',
-      created_at: new Date().toISOString(),
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-  };
-
-  // Role switching & Auth
-  const switchRole = (role: UserRole | 'guest', profileId?: string) => {
-    if (role === 'guest') {
-      setCurrentUser(null);
-      setCurrentRole('guest');
-      showToast('Switched to Public Guest view');
-      return;
-    }
-    const profile = profileId
-      ? allProfiles.find((p) => p.id === profileId)
-      : allProfiles.find((p) => p.role === role);
-
-    if (profile) {
-      setCurrentUser(profile);
-      setCurrentRole(profile.role);
-      logAuditAction('ROLE_SWITCH', 'auth', profile.id, { role: profile.role });
-      showToast(`Logged in as ${profile.full_name} (${profile.role.toUpperCase()})`);
-    }
-  };
-
-  const loginAs = (role: UserRole) => {
-    const profile = allProfiles.find((p) => p.role === role);
-    if (profile) {
-      setCurrentUser(profile);
-      setCurrentRole(profile.role);
-      logAuditAction('USER_LOGIN', 'auth', profile.id, { role });
-      showToast(`Welcome back, ${profile.full_name}!`);
-    }
-  };
-
-  const logout = () => {
-    if (currentUser) {
-      logAuditAction('USER_LOGOUT', 'auth', currentUser.id);
-    }
-    setCurrentUser(null);
-    setCurrentRole('guest');
-    showToast('Logged out successfully');
-    navigate('home');
-  };
+  // RBAC Permission checker
+  const can = useCallback(
+    (action: PermissionAction): boolean => {
+      return services.can(currentUser, action);
+    },
+    [currentUser]
+  );
 
   // Popstate listener for browser back/forward buttons
   useEffect(() => {
@@ -436,329 +356,415 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Favorites
-  const toggleFavorite = (propertyId: string) => {
-    setFavorites((prev) => {
-      const exists = prev.includes(propertyId);
-      if (exists) {
-        showToast('Removed from saved properties');
-        return prev.filter((id) => id !== propertyId);
-      } else {
-        showToast('Saved to your favorites');
-        return [...prev, propertyId];
+  // ---------------------------------------------------------------------------
+  // Load Production Data Directly from Supabase PostgreSQL
+  // ---------------------------------------------------------------------------
+  const refreshProperties = useCallback(async () => {
+    setPropertiesLoading(true);
+    try {
+      const res = await services.getProperties({ pageSize: 50 });
+      if (res.data && res.data.length > 0) {
+        setProperties(res.data);
       }
-    });
+    } catch (err: any) {
+      console.warn('Properties load note:', err);
+    } finally {
+      setPropertiesLoading(false);
+    }
+  }, []);
+
+  const refreshLeads = useCallback(async () => {
+    setLeadsLoading(true);
+    try {
+      const res = await services.getLeads(currentRole === 'guest' ? undefined : currentRole, currentUser?.id);
+      if (res && res.length > 0) {
+        setLeads(res);
+      }
+    } catch (err: any) {
+      console.warn('Leads load note:', err);
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, [currentRole, currentUser?.id]);
+
+  const loadInitialData = useCallback(async () => {
+    const health = await checkSupabaseConnection();
+    setDbHealth(health);
+
+    // 1. Properties
+    await refreshProperties();
+
+    // 2. Leads
+    await refreshLeads();
+
+    // 3. Projects
+    try {
+      const prjs = await services.getProjects();
+      if (prjs && prjs.length > 0) setProjects(prjs);
+    } catch {}
+
+    // 4. Site Visits
+    try {
+      const visits = await services.getSiteVisits(currentRole === 'guest' ? undefined : currentRole, currentUser?.id);
+      if (visits && visits.length > 0) setSiteVisits(visits);
+    } catch {}
+
+    // 5. Price & Delete Requests
+    try {
+      const pReqs = await services.getPriceChangeRequests();
+      if (pReqs && pReqs.length > 0) setPriceRequests(pReqs);
+      const dReqs = await services.getDeleteRequests();
+      if (dReqs && dReqs.length > 0) setDeleteRequests(dReqs);
+    } catch {}
+
+    // 6. Agents
+    try {
+      const ags = await services.getAgents();
+      if (ags && ags.length > 0) {
+        setAllProfiles((prev) => {
+          const nonAgents = prev.filter((p) => p.role !== 'agent');
+          return [...nonAgents, ...ags];
+        });
+      }
+    } catch {}
+
+    // 7. Services & Posts & CMS
+    try {
+      const srvs = await services.getServices();
+      if (srvs && srvs.length > 0) setServicesList(srvs);
+
+      const posts = await services.getPosts();
+      if (posts && posts.length > 0) setBlogPosts(posts);
+
+      const secs = await services.getHomepageSections();
+      if (secs && secs.length > 0) setHomepageSections(secs);
+
+      const notifs = await services.getNotifications(currentUser?.id, currentRole === 'guest' ? undefined : currentRole);
+      if (notifs && notifs.length > 0) setNotifications(notifs);
+
+      const logs = await services.getAuditLogs();
+      if (logs && logs.length > 0) setAuditLogs(logs);
+    } catch {}
+  }, [currentRole, currentUser?.id, refreshProperties, refreshLeads]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Sync Local Seed Data to Supabase (Admin helper button)
+  const syncLocalToSupabase = async (): Promise<{ success: boolean; message: string }> => {
+    const health = await refreshDbHealth();
+    if (!health.isConnected) {
+      return { success: false, message: 'Cannot connect to Supabase endpoint.' };
+    }
+    if (!health.hasTables) {
+      return {
+        success: false,
+        message: 'Database tables not yet created in Supabase. Please execute the SQL schema in Supabase SQL Editor.',
+      };
+    }
+
+    try {
+      let count = 0;
+      for (const p of properties) {
+        await services.createProperty(p, currentUser?.id);
+        count++;
+      }
+      for (const l of leads) {
+        await services.createLead(l);
+      }
+      for (const v of siteVisits) {
+        await services.createSiteVisit(v);
+      }
+      await refreshProperties();
+      showToast(`Successfully seeded ${count} properties to Supabase!`);
+      return { success: true, message: `Successfully seeded ${count} properties to Supabase.` };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Sync failed.' };
+    }
   };
 
-  // Property CRUD & Workflows
-  const addProperty = async (propertyData: Partial<Property>): Promise<Property> => {
-    const seqNum = properties.length + 1;
-    const propertyIdCode = `SPM-${String(seqNum).padStart(6, '0')}`;
-    const slug = (propertyData.title || `Property ${seqNum}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '');
+  // ---------------------------------------------------------------------------
+  // Auth & Role Switching
+  // ---------------------------------------------------------------------------
+  const switchRole = (role: UserRole | 'guest', profileId?: string) => {
+    if (role === 'guest') {
+      setCurrentUser(null);
+      setCurrentRole('guest');
+      showToast('Switched to Public Guest view');
+      return;
+    }
 
-    const newProperty: Property = {
-      id: `prop-${Date.now()}`,
-      property_id: propertyIdCode,
-      title: propertyData.title || 'Untitled Property',
-      slug,
-      property_type: propertyData.property_type || 'Apartment',
-      category: propertyData.category || 'residential',
-      listing_type: propertyData.listing_type || 'sale',
-      // Agents can only create in 'draft' or 'under_review' status; Admin can create directly 'published'
-      status: currentRole === 'admin' ? (propertyData.status || 'published') : (propertyData.status || 'draft'),
-      description: propertyData.description || '',
-      short_description: propertyData.short_description || '',
-      price: Number(propertyData.price) || 0,
-      price_per_sqft: propertyData.area ? Math.round(Number(propertyData.price) / Number(propertyData.area)) : undefined,
-      rent: propertyData.rent ? Number(propertyData.rent) : undefined,
-      maintenance: propertyData.maintenance ? Number(propertyData.maintenance) : undefined,
-      area: Number(propertyData.area) || 1000,
-      bedrooms: propertyData.bedrooms ? Number(propertyData.bedrooms) : undefined,
-      bathrooms: propertyData.bathrooms ? Number(propertyData.bathrooms) : undefined,
-      floor: propertyData.floor ? Number(propertyData.floor) : undefined,
-      total_floors: propertyData.total_floors ? Number(propertyData.total_floors) : undefined,
-      parking: propertyData.parking ? Number(propertyData.parking) : undefined,
-      facing: propertyData.facing || 'East',
-      furnishing: propertyData.furnishing || 'Semi-Furnished',
-      construction_year: propertyData.construction_year || 2024,
-      rera_number: propertyData.rera_number || '',
-      state: propertyData.state || 'Uttar Pradesh',
-      district: propertyData.district || 'Gautam Budh Nagar',
-      city: propertyData.city || 'Greater Noida West',
-      locality: propertyData.locality || 'Sector 4',
-      sector: propertyData.sector || 'Sector 4',
-      address: propertyData.address || 'Greater Noida West, U.P.',
-      pincode: propertyData.pincode || '201306',
-      featured_image:
-        propertyData.featured_image ||
-        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&auto=format&fit=crop&q=80',
-      gallery_images: propertyData.gallery_images?.length
-        ? propertyData.gallery_images
-        : [
-            'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&auto=format&fit=crop&q=80',
-            'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80',
-          ],
-      amenities: propertyData.amenities || ['Power Backup', 'Security 24/7', 'Car Parking'],
-      video_url: propertyData.video_url || '',
-      floor_plan_url: propertyData.floor_plan_url || '',
-      is_featured: Boolean(propertyData.is_featured),
-      is_verified: true,
-      views_count: 0,
-      assigned_agent_id: currentUser?.id || 'usr-agent-01',
-      assigned_agent_name: currentUser?.full_name || 'Rahul Sharma',
-      assigned_agent_phone: currentUser?.phone || '+91 98112 34567',
-      created_by: currentUser?.id || 'usr-agent-01',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      published_at: currentRole === 'admin' ? new Date().toISOString() : undefined,
-    };
+    const profile = profileId
+      ? allProfiles.find((p) => p.id === profileId)
+      : allProfiles.find((p) => p.role === role);
 
-    setProperties((prev) => [newProperty, ...prev]);
-    logAuditAction('PROPERTY_CREATED', 'properties', newProperty.id, {
-      title: newProperty.title,
-      status: newProperty.status,
-    });
+    if (profile) {
+      setCurrentUser(profile);
+      setCurrentRole(profile.role);
+      services.logAudit('ROLE_SWITCH', 'auth', profile.id, null, { role: profile.role }, profile.id);
+      showToast(`Logged in as ${profile.full_name} (${profile.role.toUpperCase()})`);
+    }
+  };
 
-    showToast(
-      currentRole === 'admin'
-        ? `Property ${propertyIdCode} created and published successfully!`
-        : `Property ${propertyIdCode} saved as ${newProperty.status}!`
+  const loginAs = (role: UserRole) => {
+    const profile = allProfiles.find((p) => p.role === role);
+    if (profile) {
+      setCurrentUser(profile);
+      setCurrentRole(profile.role);
+      services.logAudit('USER_LOGIN', 'auth', profile.id, null, { role }, profile.id);
+      showToast(`Welcome back, ${profile.full_name}!`);
+    }
+  };
+
+  const logout = async () => {
+    await services.signOut();
+    setCurrentUser(null);
+    setCurrentRole('guest');
+    showToast('Logged out successfully');
+    navigate('home');
+  };
+
+  // ---------------------------------------------------------------------------
+  // Production Mutations Delegated to Supabase Services
+  // ---------------------------------------------------------------------------
+
+  const addProperty = async (propertyData: Partial<Property>): Promise<Property | null> => {
+    if (!can('property.create')) {
+      showToast('Unauthorized: You do not have permission to create properties.');
+      return null;
+    }
+
+    // Agents can create in 'draft' or 'under_review' only; Admins can publish directly
+    const targetStatus = currentRole === 'admin' || currentRole === 'super_admin'
+      ? propertyData.status || 'published'
+      : 'draft';
+
+    const { property, error } = await services.createProperty(
+      {
+        ...propertyData,
+        status: targetStatus,
+        created_by: currentUser?.id || 'usr-admin-01',
+        assigned_agent_id: propertyData.assigned_agent_id || currentUser?.id,
+      },
+      currentUser?.id
     );
 
-    return newProperty;
+    if (error) {
+      showToast(`Database Notice: ${error}`);
+      return null;
+    }
+
+    if (property) {
+      setProperties((prev) => [property, ...prev]);
+      showToast(
+        currentRole === 'admin'
+          ? `Property ${property.property_id} created and published!`
+          : `Property saved as draft #${property.property_id}`
+      );
+      return property;
+    }
+
+    return null;
   };
 
   const updateProperty = async (id: string, propertyData: Partial<Property>) => {
+    if (!can('property.edit')) {
+      showToast('Unauthorized: Cannot edit property.');
+      return;
+    }
+
+    const { success, error } = await services.updateProperty(id, propertyData, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setProperties((prev) =>
-      prev.map((prop) => {
-        if (prop.id !== id) return prop;
-
-        // Security enforcement: Agents cannot directly set status to 'published'
-        let targetStatus = prop.status;
-        if (propertyData.status) {
-          if (currentRole === 'admin') {
-            targetStatus = propertyData.status;
-          } else {
-            // Agent can only set 'draft' or 'under_review'
-            targetStatus =
-              propertyData.status === 'published' ? 'under_review' : propertyData.status;
-          }
-        }
-
-        return {
-          ...prop,
-          ...propertyData,
-          status: targetStatus,
-          updated_at: new Date().toISOString(),
-        };
-      })
+      prev.map((prop) => (prop.id === id ? { ...prop, ...propertyData, updated_at: new Date().toISOString() } : prop))
     );
-
-    logAuditAction('PROPERTY_EDITED', 'properties', id, { updates: propertyData });
-    showToast('Property updated successfully');
+    showToast('Property listing updated successfully');
   };
 
   const submitPropertyForReview = async (id: string) => {
+    const { success, error } = await services.submitPropertyForReview(id, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setProperties((prev) =>
-      prev.map((prop) =>
-        prop.id === id
-          ? { ...prop, status: 'under_review', updated_at: new Date().toISOString() }
-          : prop
-      )
+      prev.map((p) => (p.id === id ? { ...p, status: 'under_review', updated_at: new Date().toISOString() } : p))
     );
-    logAuditAction('PROPERTY_SUBMITTED_FOR_REVIEW', 'properties', id);
-    // Notification for admin
-    const newNotif: NotificationItem = {
-      id: `notif-${Date.now()}`,
-      title: 'Property Submitted for Review',
-      message: `${currentUser?.full_name || 'Agent'} submitted property #${id} for approval.`,
-      type: 'approval',
-      link: 'admin-properties',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
     showToast('Property submitted to SunPropMart Admin for review');
   };
 
   const approveProperty = async (id: string, notes?: string) => {
-    if (currentRole !== 'admin') {
-      showToast('Unauthorized: Admin approval required');
+    if (!can('property.approve')) {
+      showToast('Unauthorized: Admin approval required.');
       return;
     }
+
+    const { success, error } = await services.approveProperty(id, currentUser?.id || 'usr-admin-01', notes);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setProperties((prev) =>
-      prev.map((prop) =>
-        prop.id === id
+      prev.map((p) =>
+        p.id === id
           ? {
-              ...prop,
+              ...p,
               status: 'published',
               approved_by: currentUser?.id,
               published_at: new Date().toISOString(),
               review_notes: notes,
-              updated_at: new Date().toISOString(),
             }
-          : prop
+          : p
       )
     );
-    logAuditAction('PROPERTY_APPROVED', 'properties', id, { notes });
     showToast('Property approved and published to website!');
   };
 
   const rejectProperty = async (id: string, notes?: string) => {
-    if (currentRole !== 'admin') return;
+    if (!can('property.reject')) {
+      showToast('Unauthorized: Admin authorization required.');
+      return;
+    }
+
+    const { success, error } = await services.rejectProperty(id, currentUser?.id || 'usr-admin-01', notes);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setProperties((prev) =>
-      prev.map((prop) =>
-        prop.id === id
-          ? {
-              ...prop,
-              status: 'rejected',
-              review_notes: notes,
-              updated_at: new Date().toISOString(),
-            }
-          : prop
-      )
+      prev.map((p) => (p.id === id ? { ...p, status: 'rejected', review_notes: notes } : p))
     );
-    logAuditAction('PROPERTY_REJECTED', 'properties', id, { notes });
     showToast('Property rejected with feedback');
   };
 
   const requestChangesProperty = async (id: string, notes?: string) => {
-    if (currentRole !== 'admin') return;
+    const { success, error } = await services.requestChangesProperty(id, currentUser?.id || 'usr-admin-01', notes);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setProperties((prev) =>
-      prev.map((prop) =>
-        prop.id === id
-          ? {
-              ...prop,
-              status: 'changes_required',
-              review_notes: notes,
-              updated_at: new Date().toISOString(),
-            }
-          : prop
-      )
+      prev.map((p) => (p.id === id ? { ...p, status: 'changes_required', review_notes: notes } : p))
     );
-    logAuditAction('PROPERTY_CHANGES_REQUESTED', 'properties', id, { notes });
-    showToast('Status changed to Changes Required');
+    showToast('Feedback sent to submitting agent');
   };
 
-  // Price Change Workflow
   const requestPriceChange = async (propertyId: string, newPrice: number, reason: string) => {
     const prop = properties.find((p) => p.id === propertyId);
     if (!prop) return;
 
-    const newReq: PropertyPriceChangeRequest = {
-      id: `pr-${Date.now()}`,
-      property_id: propertyId,
-      property_title: prop.title,
-      requested_by: currentUser?.id || 'usr-agent-01',
-      requested_by_name: currentUser?.full_name || 'Agent',
-      old_price: prop.price,
-      new_price: newPrice,
-      reason,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    };
+    const { success, error } = await services.requestPriceChange(
+      propertyId,
+      prop.title,
+      currentUser?.id || 'usr-agent-01',
+      currentUser?.full_name || 'Agent',
+      prop.price,
+      newPrice,
+      reason
+    );
 
-    setPriceRequests((prev) => [newReq, ...prev]);
-    logAuditAction('PRICE_CHANGE_REQUESTED', 'property_price_change_requests', newReq.id, {
-      old_price: prop.price,
-      new_price: newPrice,
-      reason,
-    });
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
+    const pReqs = await services.getPriceChangeRequests();
+    setPriceRequests(pReqs);
     showToast('Price change request submitted to Admin for approval');
   };
 
   const reviewPriceChange = async (requestId: string, approved: boolean, comment?: string) => {
-    if (currentRole !== 'admin') return;
+    if (!can('property.price_change_direct')) {
+      showToast('Unauthorized: Admin approval required.');
+      return;
+    }
+
     const req = priceRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setPriceRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId
-          ? {
-              ...r,
-              status: approved ? 'approved' : 'rejected',
-              reviewed_by: currentUser?.id,
-              review_comment: comment,
-              reviewed_at: new Date().toISOString(),
-            }
-          : r
-      )
+    const { success, error } = await services.reviewPriceChange(
+      requestId,
+      req.property_id,
+      req.new_price,
+      currentUser?.id || 'usr-admin-01',
+      approved,
+      comment
     );
+
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
 
     if (approved) {
       setProperties((prev) =>
-        prev.map((p) =>
-          p.id === req.property_id
-            ? {
-                ...p,
-                price: req.new_price,
-                price_per_sqft: p.area ? Math.round(req.new_price / p.area) : p.price_per_sqft,
-                updated_at: new Date().toISOString(),
-              }
-            : p
-        )
+        prev.map((p) => (p.id === req.property_id ? { ...p, price: req.new_price } : p))
       );
-      showToast(`Price change approved! Property price updated to ₹${(req.new_price / 100000).toFixed(2)} Lac`);
-    } else {
-      showToast('Price change request rejected');
     }
 
-    logAuditAction('PRICE_CHANGE_REVIEWED', 'property_price_change_requests', requestId, {
-      approved,
-      comment,
-    });
+    const pReqs = await services.getPriceChangeRequests();
+    setPriceRequests(pReqs);
+    showToast(approved ? 'Price change approved & property updated' : 'Price request rejected');
   };
 
-  // Delete Request Workflow (Soft Delete)
   const requestDelete = async (propertyId: string, reason: string) => {
     const prop = properties.find((p) => p.id === propertyId);
     if (!prop) return;
 
-    const newReq: PropertyDeleteRequest = {
-      id: `dr-${Date.now()}`,
-      property_id: propertyId,
-      property_title: prop.title,
-      requested_by: currentUser?.id || 'usr-agent-01',
-      requested_by_name: currentUser?.full_name || 'Agent',
-      reason,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    };
+    const { success, error } = await services.requestDelete(
+      propertyId,
+      prop.title,
+      currentUser?.id || 'usr-agent-01',
+      currentUser?.full_name || 'Agent',
+      reason
+    );
 
-    setDeleteRequests((prev) => [newReq, ...prev]);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setProperties((prev) =>
       prev.map((p) => (p.id === propertyId ? { ...p, status: 'delete_requested' } : p))
     );
 
-    logAuditAction('DELETE_REQUESTED', 'property_delete_requests', newReq.id, { reason });
+    const dReqs = await services.getDeleteRequests();
+    setDeleteRequests(dReqs);
     showToast('Delete request submitted to Admin for review');
   };
 
   const reviewDelete = async (requestId: string, approved: boolean, comment?: string) => {
-    if (currentRole !== 'admin') return;
+    if (!can('property.delete')) {
+      showToast('Unauthorized: Admin authorization required.');
+      return;
+    }
+
     const req = deleteRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setDeleteRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId
-          ? {
-              ...r,
-              status: approved ? 'approved' : 'rejected',
-              reviewed_by: currentUser?.id,
-              review_comment: comment,
-              reviewed_at: new Date().toISOString(),
-            }
-          : r
-      )
+    const { success, error } = await services.reviewDeleteRequest(
+      requestId,
+      req.property_id,
+      currentUser?.id || 'usr-admin-01',
+      approved,
+      comment
     );
 
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     if (approved) {
-      // Soft delete: keep record, set deleted_at & reason
       setProperties((prev) =>
         prev.map((p) =>
           p.id === req.property_id
@@ -777,140 +783,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProperties((prev) =>
         prev.map((p) => (p.id === req.property_id ? { ...p, status: 'published' } : p))
       );
-      showToast('Property delete request rejected. Listing kept active.');
+      showToast('Property delete request rejected. Listing preserved.');
     }
 
-    logAuditAction('DELETE_REQUEST_REVIEWED', 'property_delete_requests', requestId, {
-      approved,
-      comment,
-    });
-  };
-
-  // Projects & Construction
-  const addProject = async (projectData: Partial<Project>): Promise<Project> => {
-    const seq = projects.length + 1;
-    const slug = (projectData.name || `Project ${seq}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '');
-
-    const newProject: Project = {
-      id: `proj-${Date.now()}`,
-      project_id: `SPM-PRJ-${String(seq).padStart(2, '0')}`,
-      name: projectData.name || 'New Project',
-      slug,
-      client: projectData.client || 'SunPropMart Infrastructure',
-      location: projectData.location || 'Greater Noida',
-      city: projectData.city || 'Greater Noida',
-      project_type: projectData.project_type || 'Residential Projects',
-      status: projectData.status || 'ongoing',
-      start_date: projectData.start_date || new Date().toISOString().split('T')[0],
-      completion_date: projectData.completion_date,
-      budget: projectData.budget || '₹100 Cr',
-      progress_percent: projectData.progress_percent || 0,
-      description: projectData.description || '',
-      scope: projectData.scope || '',
-      highlights: projectData.highlights || [],
-      images: projectData.images?.length
-        ? projectData.images
-        : ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&auto=format&fit=crop&q=80'],
-      cover_image:
-        projectData.cover_image ||
-        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&auto=format&fit=crop&q=80',
-      created_by: currentUser?.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    setProjects((prev) => [newProject, ...prev]);
-    logAuditAction('PROJECT_CREATED', 'projects', newProject.id, { name: newProject.name });
-    showToast(`Project "${newProject.name}" added successfully`);
-    return newProject;
-  };
-
-  const updateProject = async (id: string, projectData: Partial<Project>) => {
-    setProjects((prev) =>
-      prev.map((proj) =>
-        proj.id === id ? { ...proj, ...projectData, updated_at: new Date().toISOString() } : proj
-      )
-    );
-    logAuditAction('PROJECT_EDITED', 'projects', id);
-    showToast('Project updated successfully');
-  };
-
-  const deleteProject = async (id: string) => {
-    if (currentRole !== 'admin') return;
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    logAuditAction('PROJECT_DELETED', 'projects', id);
-    showToast('Project removed');
+    const dReqs = await services.getDeleteRequests();
+    setDeleteRequests(dReqs);
   };
 
   // Leads & CRM
   const addLead = async (leadData: Partial<Lead>) => {
-    const assignedAgent = allProfiles.find((p) => p.role === 'agent') || allProfiles[1];
-    const newLead: Lead = {
-      id: `lead-${Date.now()}`,
-      customer_name: leadData.customer_name || 'Enquiry Visitor',
-      customer_email: leadData.customer_email || 'visitor@example.com',
-      customer_phone: leadData.customer_phone || '+91 98000 00000',
-      property_id: leadData.property_id,
-      property_title: leadData.property_title,
-      project_id: leadData.project_id,
-      project_name: leadData.project_name,
-      assigned_agent_id: leadData.assigned_agent_id || assignedAgent?.id,
-      assigned_agent_name: leadData.assigned_agent_name || assignedAgent?.full_name,
-      source: leadData.source || 'Website',
-      status: 'New',
-      budget_range: leadData.budget_range,
-      preferred_location: leadData.preferred_location,
-      message: leadData.message,
-      notes: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const { lead, error } = await services.createLead(leadData);
+    if (error) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
 
-    setLeads((prev) => [newLead, ...prev]);
-    logAuditAction('LEAD_RECEIVED', 'leads', newLead.id, {
-      customer: newLead.customer_name,
-      property: newLead.property_title,
-    });
-
-    // Notify agent
-    const notif: NotificationItem = {
-      id: `notif-${Date.now()}`,
-      title: 'New Lead Inbound',
-      message: `${newLead.customer_name} enquired about ${newLead.property_title || 'a property'}.`,
-      type: 'lead',
-      link: 'agent-leads',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    };
-    setNotifications((prev) => [notif, ...prev]);
-    showToast('Thank you! Your enquiry has been received. Our property specialist will contact you shortly.');
+    if (lead) {
+      setLeads((prev) => [lead, ...prev]);
+      showToast('Thank you! Your enquiry has been received. Our property specialist will contact you shortly.');
+    }
   };
 
   const updateLeadStatus = async (leadId: string, status: Lead['status'], noteText?: string) => {
+    const { success, error } = await services.updateLeadStatus(
+      leadId,
+      status,
+      noteText,
+      currentUser?.full_name || 'Agent',
+      currentUser?.id
+    );
+
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setLeads((prev) =>
-      prev.map((lead) => {
-        if (lead.id !== leadId) return lead;
-        const updatedNotes = [...lead.notes];
+      prev.map((l) => {
+        if (l.id !== leadId) return l;
+        const notes = Array.isArray(l.notes) ? [...l.notes] : [];
         if (noteText) {
-          updatedNotes.unshift({
+          notes.unshift({
             id: `note-${Date.now()}`,
             author: currentUser?.full_name || 'Agent',
             note: noteText,
             created_at: new Date().toISOString(),
           });
         }
-        return {
-          ...lead,
-          status,
-          notes: updatedNotes,
-          updated_at: new Date().toISOString(),
-        };
+        return { ...l, status, notes };
       })
     );
-    logAuditAction('LEAD_STATUS_UPDATED', 'leads', leadId, { status, noteText });
     showToast(`Lead status updated to ${status}`);
   };
 
@@ -918,195 +840,241 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const agent = allProfiles.find((p) => p.id === agentId);
     if (!agent) return;
 
+    const { success, error } = await services.assignLead(
+      leadId,
+      agentId,
+      agent.full_name,
+      currentUser?.id
+    );
+
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setLeads((prev) =>
-      prev.map((l) =>
-        l.id === leadId
-          ? {
-              ...l,
-              assigned_agent_id: agent.id,
-              assigned_agent_name: agent.full_name,
-              updated_at: new Date().toISOString(),
-            }
-          : l
-      )
+      prev.map((l) => (l.id === leadId ? { ...l, assigned_agent_id: agentId, assigned_agent_name: agent.full_name } : l))
     );
     showToast(`Lead assigned to ${agent.full_name}`);
-    logAuditAction('LEAD_REASSIGNED', 'leads', leadId, { new_agent: agent.full_name });
   };
 
   // Site Visits
   const bookSiteVisit = async (visitData: Partial<SiteVisit>) => {
-    const assignedAgent = allProfiles.find((p) => p.role === 'agent') || allProfiles[1];
-    const newVisit: SiteVisit = {
-      id: `sv-${Date.now()}`,
-      property_id: visitData.property_id || '',
-      property_title: visitData.property_title || 'SunPropMart Property',
-      customer_id: currentUser?.id,
-      customer_name: visitData.customer_name || currentUser?.full_name || 'Prospective Buyer',
-      customer_email: visitData.customer_email || currentUser?.email || 'buyer@example.com',
-      customer_phone: visitData.customer_phone || currentUser?.phone || '+91 98000 00000',
-      assigned_agent_id: visitData.assigned_agent_id || assignedAgent?.id,
-      assigned_agent_name: visitData.assigned_agent_name || assignedAgent?.full_name,
-      visit_date: visitData.visit_date || new Date().toISOString().split('T')[0],
-      visit_time: visitData.visit_time || '11:00 AM',
-      status: 'Requested',
-      notes: visitData.notes,
-      created_at: new Date().toISOString(),
-    };
+    const { siteVisit, error } = await services.createSiteVisit(visitData);
+    if (error) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
 
-    setSiteVisits((prev) => [newVisit, ...prev]);
-    logAuditAction('SITE_VISIT_BOOKED', 'site_visits', newVisit.id, {
-      date: newVisit.visit_date,
-      time: newVisit.visit_time,
-    });
-    showToast(`Site visit request booked for ${newVisit.visit_date} at ${newVisit.visit_time}!`);
+    if (siteVisit) {
+      setSiteVisits((prev) => [siteVisit, ...prev]);
+      showToast(`Site visit request booked for ${siteVisit.visit_date} at ${siteVisit.visit_time}!`);
+    }
   };
 
-  const updateSiteVisitStatus = async (
-    visitId: string,
-    status: SiteVisit['status'],
-    notes?: string
-  ) => {
+  const updateSiteVisitStatus = async (visitId: string, status: SiteVisit['status'], notes?: string) => {
+    const { success, error } = await services.updateSiteVisitStatus(visitId, status, notes, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setSiteVisits((prev) =>
-      prev.map((sv) =>
-        sv.id === visitId
-          ? { ...sv, status, notes: notes || sv.notes, updated_at: new Date().toISOString() }
-          : sv
-      )
+      prev.map((v) => (v.id === visitId ? { ...v, status, notes: notes || v.notes } : v))
     );
-    showToast(`Site visit status changed to ${status}`);
-    logAuditAction('SITE_VISIT_STATUS_UPDATED', 'site_visits', visitId, { status });
+    showToast(`Site visit status updated to ${status}`);
   };
 
-  // Services & Blog
-  const addService = async (service: Partial<ServiceItem>) => {
-    const seq = services.length + 1;
-    const newSrv: ServiceItem = {
-      id: `srv-${Date.now()}`,
-      title: service.title || 'New Service',
-      slug: (service.title || `service-${seq}`).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      short_description: service.short_description || '',
-      full_content: service.full_content || '',
-      category: service.category || 'Real Estate',
-      icon: service.icon || 'Building',
-      image_url: service.image_url || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
-      display_order: seq,
-      is_published: true,
-      features: service.features || [],
-    };
-    setServices((prev) => [...prev, newSrv]);
-    showToast(`Service "${newSrv.title}" added`);
+  // Projects
+  const addProject = async (projectData: Partial<Project>): Promise<Project | null> => {
+    const { project, error } = await services.createProject(projectData, currentUser?.id);
+    if (error) {
+      showToast(`Database Notice: ${error}`);
+      return null;
+    }
+
+    if (project) {
+      setProjects((prev) => [project, ...prev]);
+      showToast('Project created successfully');
+      return project;
+    }
+    return null;
   };
 
-  const updateService = async (id: string, service: Partial<ServiceItem>) => {
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...service } : s)));
-    showToast('Service updated');
+  const updateProject = async (id: string, projectData: Partial<Project>) => {
+    const { success, error } = await services.updateProject(id, projectData, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...projectData } : p))
+    );
+    showToast('Project updated successfully');
   };
 
-  const addBlogPost = async (post: Partial<BlogPost>) => {
-    const newPost: BlogPost = {
-      id: `blog-${Date.now()}`,
-      title: post.title || 'Market Update',
-      slug: (post.title || 'market-update').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      excerpt: post.excerpt || '',
-      content: post.content || '',
-      featured_image:
-        post.featured_image || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200',
-      category: post.category || 'Market Insights',
-      tags: post.tags || ['Real Estate'],
-      author_name: currentUser?.full_name || 'SunPropMart Editorial',
-      read_time: '4 min read',
-      status: post.status || 'published',
-      published_at: new Date().toISOString(),
-      views_count: 0,
-    };
-    setBlogPosts((prev) => [newPost, ...prev]);
-    showToast(`Blog article "${newPost.title}" published`);
-  };
+  const deleteProject = async (id: string) => {
+    const { success, error } = await services.deleteProject(id, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
 
-  const updateBlogPost = async (id: string, post: Partial<BlogPost>) => {
-    setBlogPosts((prev) => prev.map((b) => (b.id === id ? { ...b, ...post } : b)));
-    showToast('Blog article updated');
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    showToast('Project removed');
   };
 
   // Agents Management
   const addAgent = async (agentData: Partial<UserProfile>) => {
-    const seq = allProfiles.filter((p) => p.role === 'agent').length + 1;
-    const newAgent: UserProfile = {
-      id: `usr-agent-${Date.now()}`,
-      agent_id: `SPM-AG-${100 + seq}`,
-      full_name: agentData.full_name || 'New Consultant',
-      email: agentData.email || `agent${seq}@sunpropmart.com`,
-      phone: agentData.phone || '+91 98000 00000',
-      role: 'agent',
-      designation: agentData.designation || 'Property Consultant',
-      territory: agentData.territory || 'Delhi NCR',
-      experience_years: agentData.experience_years || 3,
-      bio: agentData.bio || 'Authorized SunPropMart property consultant.',
-      is_active: true,
-      avatar_url:
-        agentData.avatar_url ||
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-      created_at: new Date().toISOString(),
-    };
-    setAllProfiles((prev) => [...prev, newAgent]);
-    logAuditAction('AGENT_CREATED', 'profiles', newAgent.id, { name: newAgent.full_name });
-    showToast(`Agent ${newAgent.full_name} (${newAgent.agent_id}) added`);
+    const { agent, error } = await services.createAgent(agentData, currentUser?.id);
+    if (error) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
+    if (agent) {
+      setAllProfiles((prev) => [...prev, agent]);
+      showToast(`Agent ${agent.full_name} registered successfully`);
+    }
   };
 
   const updateAgent = async (id: string, agentData: Partial<UserProfile>) => {
-    setAllProfiles((prev) => prev.map((p) => (p.id === id ? { ...p, ...agentData } : p)));
-    showToast('Agent details updated');
+    const { success, error } = await services.updateAgent(id, agentData, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
+    setAllProfiles((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...agentData } : p))
+    );
+    showToast('Agent details updated successfully');
   };
 
   const toggleAgentStatus = async (id: string) => {
+    const target = allProfiles.find((p) => p.id === id);
+    if (!target) return;
+
+    const newStatus = !target.is_active;
+    const { success, error } = await services.toggleAgentStatus(id, newStatus, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
     setAllProfiles((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, is_active: !p.is_active } : p))
+      prev.map((p) => (p.id === id ? { ...p, is_active: newStatus } : p))
     );
-    showToast('Agent active status toggled');
+    showToast(`Agent account ${newStatus ? 'activated' : 'deactivated'}`);
   };
 
-  // Media Library
+  // Services & Blog CMS
+  const addService = async (service: Partial<ServiceItem>) => {
+    setServicesList((prev) => [service as ServiceItem, ...prev]);
+    showToast('Service added to catalogue');
+  };
+
+  const updateService = async (id: string, service: Partial<ServiceItem>) => {
+    setServicesList((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...service } : s))
+    );
+    showToast('Service updated');
+  };
+
+  const addBlogPost = async (post: Partial<BlogPost>) => {
+    const { post: newPost, error } = await services.createPost(post, currentUser?.id);
+    if (error) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+    if (newPost) {
+      setBlogPosts((prev) => [newPost, ...prev]);
+      showToast('Blog article published');
+    }
+  };
+
+  const updateBlogPost = async (id: string, post: Partial<BlogPost>) => {
+    setBlogPosts((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, ...post } : b))
+    );
+    showToast('Article updated');
+  };
+
+  const updateSection = async (id: string, data: Partial<CmsPageSection>) => {
+    const { success, error } = await services.updateHomepageSection(id, data, currentUser?.id);
+    if (!success) {
+      showToast(`Database Notice: ${error}`);
+      return;
+    }
+
+    setHomepageSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...data } : s))
+    );
+    showToast('Section settings updated');
+  };
+
+  // Media & Notifications
   const addMediaItem = async (media: Partial<MediaItem>) => {
-    const newItem: MediaItem = {
-      id: `med-${Date.now()}`,
-      filename: media.filename || 'uploaded-file.jpg',
-      file_url:
-        media.file_url ||
-        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&auto=format&fit=crop&q=80',
-      file_type: media.file_type || 'image',
-      file_size: media.file_size || '1.8 MB',
-      category: media.category || 'general',
-      uploaded_by: currentUser?.full_name || 'Admin',
-      created_at: new Date().toISOString(),
-    };
-    setMediaItems((prev) => [newItem, ...prev]);
-    showToast(`Asset "${newItem.filename}" added to media library`);
+    setMediaItems((prev) => [media as MediaItem, ...prev]);
+    showToast('Media item recorded');
   };
 
   const deleteMediaItem = async (id: string) => {
     setMediaItems((prev) => prev.filter((m) => m.id !== id));
-    showToast('Media asset removed');
+    showToast('Media item deleted');
   };
 
-  // Notifications
   const markNotificationRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    services.markNotificationAsRead(id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+    );
   };
 
   const clearNotifications = () => {
     setNotifications([]);
   };
 
+  const logAuditAction = (action: string, entity: string, entityId: string, details?: any) => {
+    services.logAudit(
+      action,
+      entity,
+      entityId,
+      null,
+      details,
+      currentUser?.id,
+      currentUser?.full_name,
+      currentRole
+    );
+  };
+
+  const toggleFavorite = (propertyId: string) => {
+    setFavorites((prev) => {
+      const exists = prev.includes(propertyId);
+      if (exists) {
+        showToast('Removed from saved properties');
+        return prev.filter((id) => id !== propertyId);
+      } else {
+        showToast('Saved to your favorites');
+        return [...prev, propertyId];
+      }
+    });
+  };
+
   return (
     <AppContext.Provider
       value={{
+        supabaseHealth: dbHealth,
+        refreshSupabaseHealth: refreshDbHealth,
+        syncLocalToSupabase,
         currentUser,
         currentRole,
         switchRole,
         loginAs,
         logout,
         allProfiles,
+        can,
         currentView,
         selectedPropertySlug,
         selectedProjectSlug,
@@ -1123,6 +1091,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         filterBudget,
         setFilterBudget,
         properties,
+        propertiesLoading,
+        refreshProperties,
         addProperty,
         updateProperty,
         submitPropertyForReview,
@@ -1142,18 +1112,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProject,
         deleteProject,
         leads,
+        leadsLoading,
+        refreshLeads,
         addLead,
         updateLeadStatus,
         assignLeadToAgent,
         siteVisits,
         bookSiteVisit,
         updateSiteVisitStatus,
-        services,
+        services: servicesList,
+        servicesList,
         addService,
         updateService,
         blogPosts,
         addBlogPost,
         updateBlogPost,
+        homepageSections,
+        updateSection,
         agents: allProfiles.filter((p) => p.role === 'agent'),
         addAgent,
         updateAgent,

@@ -309,17 +309,21 @@ export const Footer: React.FC<FooterProps> = ({ onOpenEnquiryModal }) => {
         <div className="border-t border-white/10 mt-12 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4 text-center sm:text-left">
           <p>© 2026 SunPropMart. All Rights Reserved. Company Controlled Real Estate Platform.</p>
           <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6">
-            <button onClick={() => navigate('contact')} className="hover:text-white transition-colors">
+            <button onClick={() => navigate('careers')} className="hover:text-white transition-colors">
+              Careers
+            </button>
+            <span>|</span>
+            <button onClick={() => navigate('privacy')} className="hover:text-white transition-colors">
               Privacy Policy
             </button>
             <span>|</span>
-            <button onClick={() => navigate('contact')} className="hover:text-white transition-colors">
+            <button onClick={() => navigate('terms')} className="hover:text-white transition-colors">
               Terms & Conditions
             </button>
             <span>|</span>
-            <button onClick={() => navigate('sitemap')} className="hover:text-white transition-colors">
-              Sitemap
-            </button>
+            <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+              Sitemap.xml
+            </a>
           </div>
         </div>
       </div>

@@ -24,6 +24,10 @@ import {
   Image as ImageIcon,
   Activity,
   UserPlus,
+  Database,
+  RefreshCw,
+  ExternalLink,
+  Copy,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -51,6 +55,9 @@ export const AdminDashboard: React.FC = () => {
     deleteMediaItem,
     showToast,
     navigate,
+    supabaseHealth,
+    refreshSupabaseHealth,
+    syncLocalToSupabase,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
@@ -64,7 +71,12 @@ export const AdminDashboard: React.FC = () => {
     | 'site-visits'
     | 'media'
     | 'audit-logs'
+    | 'supabase'
   >('overview');
+
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [copiedSchema, setCopiedSchema] = useState(false);
 
   // Filter state
   const [propertyFilter, setPropertyFilter] = useState<string>('all');
@@ -190,6 +202,12 @@ export const AdminDashboard: React.FC = () => {
             { id: 'projects', label: `Projects (${projects.length})`, icon: Layers },
             { id: 'media', label: 'Media Library', icon: ImageIcon },
             { id: 'audit-logs', label: 'Audit Logs', icon: Activity },
+            {
+              id: 'supabase',
+              label: 'Supabase DB',
+              icon: Database,
+              badge: supabaseHealth.isConnected ? 'CONNECTED' : undefined,
+            },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -253,6 +271,45 @@ export const AdminDashboard: React.FC = () => {
                 <div className="text-3xl font-black text-blue-400 mt-2">{siteVisits.length}</div>
                 <div className="text-[11px] text-blue-300 mt-1">{pendingVisits} New Requests</div>
               </div>
+            </div>
+
+            {/* Supabase Cloud Database Status Banner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#0F1D38] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2.5 rounded-xl ${
+                    supabaseHealth.isConnected
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  }`}
+                >
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-sm">Supabase PostgreSQL Database</h3>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        supabaseHealth.isConnected
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}
+                    >
+                      {supabaseHealth.isConnected ? 'Connected & Active' : 'Connecting...'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Project ID: <span className="font-mono text-amber-300/90">{supabaseHealth.projectId}</span> • Endpoint: {supabaseHealth.projectUrl}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('supabase')}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <span>Manage Supabase</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             {/* Pending Approvals Quick Banner */}
@@ -953,6 +1010,241 @@ export const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* 9. SUPABASE DATABASE TAB */}
+        {activeTab === 'supabase' && (
+          <div className="space-y-6">
+            <div className="bg-[#0F1D38] rounded-2xl p-6 border border-white/10">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <Database className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-white flex items-center gap-2">
+                        <span>Supabase Cloud Integration</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            supabaseHealth.isConnected
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-amber-500/20 text-amber-300'
+                          }`}
+                        >
+                          {supabaseHealth.isConnected ? 'Connected' : 'Reconnecting...'}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Production PostgreSQL relational database, Row Level Security, and Realtime CRM synchronization.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={async () => {
+                      setIsTestingSupabase(true);
+                      const res = await refreshSupabaseHealth();
+                      setIsTestingSupabase(false);
+                      showToast(res.message);
+                    }}
+                    disabled={isTestingSupabase}
+                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isTestingSupabase ? 'animate-spin text-amber-400' : ''}`} />
+                    <span>{isTestingSupabase ? 'Testing...' : 'Test Connection'}</span>
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      setIsSyncingSupabase(true);
+                      const res = await syncLocalToSupabase();
+                      setIsSyncingSupabase(false);
+                      showToast(res.message);
+                    }}
+                    disabled={isSyncingSupabase}
+                    className="px-4 py-2.5 rounded-xl bg-[#E5B842] hover:bg-[#D4AF37] text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingSupabase ? 'Syncing...' : 'Sync Local to Supabase'}</span>
+                  </button>
+
+                  <a
+                    href={`https://supabase.com/dashboard/project/${supabaseHealth.projectId}/sql/new`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+                  >
+                    <span>Supabase SQL Editor</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Status Message */}
+              <div className="p-3.5 rounded-xl bg-[#070D1A] border border-white/10 text-xs text-slate-300 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>{supabaseHealth.message || 'Supabase service status operational.'}</span>
+                </div>
+                <span className="text-[10px] text-slate-500">
+                  Last checked: {new Date(supabaseHealth.checkedAt).toLocaleTimeString()}
+                </span>
+              </div>
+
+              {/* Detail Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Project Reference
+                  </div>
+                  <div className="text-base font-bold text-white mt-1 font-mono">
+                    {supabaseHealth.projectId}
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate mt-1">
+                    {supabaseHealth.projectUrl}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Client Security
+                  </div>
+                  <div className="text-base font-bold text-emerald-400 mt-1">
+                    Anon Key Configured
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Row-Level Security (RLS) enforcement ready
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+                    CRM & Lead Capture
+                  </div>
+                  <div className="text-base font-bold text-amber-400 mt-1">
+                    Automatic Forwarding
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Live syncing to Supabase with local fallback
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tables & Schema Section */}
+            <div className="bg-[#0F1D38] rounded-2xl p-6 border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white">Database Tables Status</h3>
+                  <p className="text-xs text-slate-400">
+                    Schema verification across relational tables:
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const snippet = `-- Run this in your Supabase SQL Editor:
+-- https://supabase.com/dashboard/project/${supabaseHealth.projectId}/sql/new
+-- (Full schema available in /supabase/schema.sql)
+
+CREATE TABLE IF NOT EXISTS public.leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_name TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT NOT NULL,
+  property_id TEXT,
+  project_id TEXT,
+  assigned_agent_id TEXT,
+  source TEXT DEFAULT 'Website',
+  status TEXT NOT NULL DEFAULT 'New',
+  budget_range TEXT,
+  preferred_location TEXT,
+  message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.site_visits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id TEXT,
+  customer_name TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT NOT NULL,
+  assigned_agent_id TEXT,
+  visit_date DATE NOT NULL,
+  visit_time TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Requested',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.properties (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id VARCHAR(30) UNIQUE,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  property_type TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'residential',
+  listing_type TEXT NOT NULL DEFAULT 'sale',
+  status TEXT NOT NULL DEFAULT 'draft',
+  description TEXT NOT NULL,
+  price NUMERIC(15, 2) NOT NULL DEFAULT 0,
+  area NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  bedrooms INT DEFAULT 0,
+  bathrooms INT DEFAULT 0,
+  city TEXT NOT NULL DEFAULT 'Greater Noida',
+  locality TEXT NOT NULL,
+  address TEXT NOT NULL,
+  featured_image TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);`;
+                    navigator.clipboard.writeText(snippet);
+                    setCopiedSchema(true);
+                    showToast('SQL schema copied to clipboard!');
+                    setTimeout(() => setCopiedSchema(false), 3000);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-white/10"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{copiedSchema ? 'Copied to Clipboard!' : 'Copy Schema SQL'}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {[
+                  { name: 'properties', label: 'Properties', active: supabaseHealth.tables.properties, count: properties.length },
+                  { name: 'projects', label: 'Projects', active: supabaseHealth.tables.projects, count: projects.length },
+                  { name: 'leads', label: 'CRM Leads', active: supabaseHealth.tables.leads, count: leads.length },
+                  { name: 'site_visits', label: 'Site Visits', active: supabaseHealth.tables.site_visits, count: siteVisits.length },
+                  { name: 'profiles', label: 'Agents & Users', active: supabaseHealth.tables.profiles, count: agents.length + 1 },
+                ].map((t) => (
+                  <div
+                    key={t.name}
+                    className="p-3.5 rounded-xl bg-[#070D1A] border border-white/5 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white font-mono">{t.name}</span>
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            t.active ? 'bg-emerald-400' : 'bg-slate-600'
+                          }`}
+                        />
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1">{t.label}</div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500">Local Cache:</span>
+                      <span className="text-slate-300 font-bold">{t.count} items</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

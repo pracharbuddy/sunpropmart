@@ -1,4 +1,39 @@
-export type UserRole = 'admin' | 'agent' | 'customer';
+export type UserRole =
+  | 'super_admin'
+  | 'admin'
+  | 'property_manager'
+  | 'sales_manager'
+  | 'agent'
+  | 'content_manager'
+  | 'crm_manager'
+  | 'construction_manager'
+  | 'account_manager'
+  | 'customer';
+
+export type PermissionAction =
+  | 'property.create'
+  | 'property.edit'
+  | 'property.delete'
+  | 'property.delete_request'
+  | 'property.approve'
+  | 'property.reject'
+  | 'property.publish'
+  | 'property.price_change_direct'
+  | 'property.price_change_request'
+  | 'property.upload_media'
+  | 'property.upload_document'
+  | 'property.view_private_doc'
+  | 'lead.view_assigned'
+  | 'lead.view_all'
+  | 'lead.assign'
+  | 'lead.status_update'
+  | 'site_visit.view'
+  | 'site_visit.manage'
+  | 'agent.manage'
+  | 'cms.manage'
+  | 'blog.manage'
+  | 'audit.view'
+  | 'settings.manage';
 
 export type PropertyStatus =
   | 'draft'
@@ -383,3 +418,84 @@ export interface MediaItem {
   uploaded_by: string;
   created_at: string;
 }
+
+export interface CmsPageSection {
+  id: string;
+  section_key: string;
+  title: string;
+  subtitle?: string;
+  content?: string;
+  image_url?: string;
+  button_text?: string;
+  button_url?: string;
+  sort_order: number;
+  enabled: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface CmsPage {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  status: 'draft' | 'published';
+  featured_image?: string;
+  published_at?: string;
+  sections?: CmsPageSection[];
+}
+
+export interface FaqItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  display_order: number;
+}
+
+export interface SeoMetadata {
+  id?: string;
+  entity_type: 'property' | 'project' | 'page' | 'post' | 'service';
+  entity_id: string;
+  seo_title: string;
+  meta_description: string;
+  canonical_url?: string;
+  robots?: string;
+  og_title?: string;
+  og_description?: string;
+  og_image?: string;
+  twitter_title?: string;
+  twitter_description?: string;
+  twitter_image?: string;
+}
+
+export interface PropertyFilterParams {
+  keyword?: string;
+  city?: string;
+  locality?: string;
+  sector?: string;
+  property_type?: string;
+  category?: string;
+  listing_type?: string;
+  min_price?: number;
+  max_price?: number;
+  min_area?: number;
+  max_area?: number;
+  bedrooms?: number | string;
+  bathrooms?: number | string;
+  furnishing?: string;
+  amenities?: string[];
+  status?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: 'created_at' | 'price' | 'area' | 'views_count';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+

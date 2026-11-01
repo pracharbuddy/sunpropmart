@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "SunPropMart",
+    "slug": "sunpropmart-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "sunpropmart",
+    "splash": {
+      "backgroundColor": "#0B1528",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.sunpropmart.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1528"
+      },
+      "package": "in.sunpropmart.app"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you upload property and document images.",
+          "cameraPermission": "The app accesses your camera to capture property listings and documentation."
+        }
+      ]
+    ]
+  }
+}
